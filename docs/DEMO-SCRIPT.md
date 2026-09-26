@@ -84,13 +84,28 @@ validates the varnish receipt so Varnish flips from OUT to OK on screen.
 - *Low / Out of Stock* tile → click → Stock page filtered to out-of-stock.
 
 ## 4. Operations & Move History — Role 4 (1:45)
-*Suggested beats. Owner: replace with your exact clicks.*
-- **Receipt:** open the READY receipt from Acme (Varnish 60 + Screws 100) → **Validate** into Main Store.
-  Jump to Stock: Varnish **OUT → OK**, Screws **LOW → OK** (the forecast from section 3 came true).
-- **Delivery:** create a delivery for 500 kg of Steel → Validate from Main Store → *"Not enough stock for Steel Rods (STEEL-001): 65 available, 500 requested"* (65 after section 3's recount). Nothing posts.
-- **Transfer:** validate the draft transfer of 5 chairs Main Store → Production Rack.
-- **Move History:** search "steel" and filter by move type → the full, immutable audit trail with references.
-- Line: "Validating a document is the only way stock moves, and it posts once — even if two people click at the same moment."
+*Presented by Muzaffar (Bhanu unavailable). Rehearsed against the API: every number below checked.*
+
+**1. Receipt → the forecast comes true (30s)**
+- **Operations** → **Receipts (Incoming)** → the READY receipt from **Acme Steel Co.** (Varnish 60 + Screws 100) → **Validate** → location **Main Store** → **Confirm & Validate**.
+- Jump to **Stock**: Wood Varnish **OUT → OK (60 l)**, Screws **LOW → OK (112)**.
+- Line: "The forecast said we were covered — validating the receipt is what actually moves the stock."
+
+**2. Delivery that can't be filled (35s)**
+- **Operations** → **Deliveries** tab → **New Delivery** → Steel Rods, qty **500**.
+  The line turns **red: "Only 65 kg free to use"** (75 on hand − 10 already promised).
+- **Create Delivery Order** anyway → **Validate** → **Main Store** → **Confirm & Validate**.
+- The modal shows *"Not enough stock for Steel Rods (STEEL-001): 65 available, 500 requested"*. Nothing posts.
+- Line: "Warned before, refused at validate — stock can never go negative."
+
+**3. Internal transfer (15s)**
+- **Transfers** tab → the DRAFT transfer of 5 Office Chairs, Main Store → Production Rack → **Validate**.
+- Line: "Transfers move stock between locations; the company total doesn't change."
+
+**4. Move History (25s)**
+- **Move History** → search **steel** → filter **Inventory Adjustment**: section 3's −2 kg count is there.
+- Clear the filter: every receipt, delivery, transfer and adjustment, newest first, paged.
+- Line: "Validating a document is the only way stock moves, it posts exactly once — even if two people click at the same moment — and every move is here forever."
 
 ## 5. Under the hood — Role 1 (1:00)
 *Suggested beats. Owner: replace with your exact clicks.*
