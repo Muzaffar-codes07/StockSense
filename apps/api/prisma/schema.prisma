@@ -1,0 +1,244 @@
+// StockSense — database schema (Phase 0 contract).
+// Core idea: every stock change is a `StockMove` row. Current stock is DERIVED
+// by summing moves (see StockService.stockOnHand). No table stores a mutable
+// "quantity on hand" — the ledger is the single source of truth.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+model User {
+  id           String            @id @default(uuid())
+  name         String
+  email        String            @unique
+  passwordHash String
+  createdAt    DateTime          @default(now())
+  otps         PasswordResetOtp[]
+}
+
+model PasswordResetOtp {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  otpCode   String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Warehouses & locations (multi-warehouse)
+// ---------------------------------------------------------------------------
+model Warehouse {
+  id        String     @id @default(uuid())
+  name      String
+  address   String?
+  locations Location[]
+}
+
+enum LocationType {
+  STOCK
+  PRODUCTION
+  RACK
+  TRANSIT
+}
+
+model Location {
+  id          String       @id @default(uuid())
+  warehouse   Warehouse    @relation(fields: [warehouseId], references: [id])
+  warehouseId String
+  name        String
+  type        LocationType @default(STOCK)
+  parent      Location?    @relation("LocationTree", fields: [parentId], references: [id])
+  parentId    String?
+  children    Location[]   @relation("LocationTree")
+
+  movesFrom StockMove[] @relation("MoveFrom")
+  movesTo   StockMove[] @relation("MoveTo")
+
+  @@index([warehouseId])
+}
+
+// ---------------------------------------------------------------------------
+// Products & categories
+// ---------------------------------------------------------------------------
+model Category {
+  id       String    @id @default(uuid())
+  name     String    @unique
+  products Product[]
+}
+
+model Product {
+  id         String        @id @default(uuid())
+  name       String
+  sku        String        @unique
+  category   Category?     @relation(fields: [categoryId], references: [id])
+  categoryId String?
+  uom        String        @default("unit") // unit of measure
+  createdAt  DateTime      @default(now())
+
+  reorderRules    ReorderRule[]
+  moves           StockMove[]
+  receiptLines    ReceiptLine[]
+  deliveryLines   DeliveryLine[]
+  transferLines   TransferLine[]
+  adjustmentLines AdjustmentLine[]
+
+  @@index([categoryId])
+}
+
+model ReorderRule {
+  id        String  @id @default(uuid())
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  minQty    Float   @default(0)
+  maxQty    Float?
+
+  @@unique([productId])
+}
+
+// ---------------------------------------------------------------------------
+// Partners (suppliers / customers)
+// ---------------------------------------------------------------------------
+enum PartnerType {
+  SUPPLIER
+  CUSTOMER
+}
+
+model Partner {
+  id         String      @id @default(uuid())
+  name       String
+  type       PartnerType
+  receipts   Receipt[]
+  deliveries Delivery[]
+}
+
+// ---------------------------------------------------------------------------
+// THE LEDGER — single source of truth for stock
+// ---------------------------------------------------------------------------
+enum MoveType {
+  RECEIPT
+  DELIVERY
+  INTERNAL
+  ADJUSTMENT
+}
+
+model StockMove {
+  id             String    @id @default(uuid())
+  product        Product   @relation(fields: [productId], references: [id])
+  productId      String
+  fromLocation   Location? @relation("MoveFrom", fields: [fromLocationId], references: [id])
+  fromLocationId String?
+  toLocation     Location? @relation("MoveTo", fields: [toLocationId], references: [id])
+  toLocationId   String?
+  qty            Float
+  moveType       MoveType
+  docType        String? // "receipt" | "delivery" | "transfer" | "adjustment"
+  docId          String?
+  doneAt         DateTime  @default(now())
+  createdAt      DateTime  @default(now())
+
+  @@index([productId])
+  @@index([fromLocationId])
+  @@index([toLocationId])
+  @@index([docType, docId])
+}
+
+// ---------------------------------------------------------------------------
+// Operation documents (header + lines). "Validate" generates StockMoves.
+// ---------------------------------------------------------------------------
+enum DocStatus {
+  DRAFT
+  WAITING
+  READY
+  DONE
+  CANCELED
+}
+
+model Receipt {
+  id          String        @id @default(uuid())
+  partner     Partner?      @relation(fields: [partnerId], references: [id])
+  partnerId   String?
+  status      DocStatus     @default(DRAFT)
+  createdAt   DateTime      @default(now())
+  validatedAt DateTime?
+  lines       ReceiptLine[]
+}
+
+model ReceiptLine {
+  id        String  @id @default(uuid())
+  receipt   Receipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  receiptId String
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+  qty       Float
+}
+
+model Delivery {
+  id          String         @id @default(uuid())
+  partner     Partner?       @relation(fields: [partnerId], references: [id])
+  partnerId   String?
+  status      DocStatus      @default(DRAFT)
+  createdAt   DateTime       @default(now())
+  validatedAt DateTime?
+  lines       DeliveryLine[]
+}
+
+model DeliveryLine {
+  id         String   @id @default(uuid())
+  delivery   Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  deliveryId String
+  product    Product  @relation(fields: [productId], references: [id])
+  productId  String
+  qty        Float
+}
+
+model Transfer {
+  id          String         @id @default(uuid())
+  status      DocStatus      @default(DRAFT)
+  createdAt   DateTime       @default(now())
+  validatedAt DateTime?
+  lines       TransferLine[]
+  // from/to captured per line so a transfer can move several products at once
+}
+
+model TransferLine {
+  id             String   @id @default(uuid())
+  transfer       Transfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  transferId     String
+  product        Product  @relation(fields: [productId], references: [id])
+  productId      String
+  qty            Float
+  fromLocationId String
+  toLocationId   String
+}
+
+model Adjustment {
+  id          String           @id @default(uuid())
+  locationId  String
+  status      DocStatus        @default(DRAFT)
+  createdAt   DateTime         @default(now())
+  validatedAt DateTime?
+  lines       AdjustmentLine[]
+}
+
+model AdjustmentLine {
+  id           String     @id @default(uuid())
+  adjustment   Adjustment @relation(fields: [adjustmentId], references: [id], onDelete: Cascade)
+  adjustmentId String
+  product      Product    @relation(fields: [productId], references: [id])
+  productId    String
+  countedQty   Float
+  recordedQty  Float
+  diff         Float // countedQty - recordedQty (posted to the ledger)
+}
