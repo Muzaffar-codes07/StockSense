@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { WarehousesModule } from './warehouses/warehouses.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { ProductsModule } from './products/products.module';
+import { CategoriesModule } from './categories/categories.module';
 import { HealthController } from './health/health.controller';
 import { MetaController } from './meta/meta.controller';
 
@@ -21,6 +22,7 @@ import { MetaController } from './meta/meta.controller';
     WarehousesModule,
     InventoryModule,
     ProductsModule,
+    CategoriesModule,
   ],
   controllers: [HealthController, MetaController],
 })
