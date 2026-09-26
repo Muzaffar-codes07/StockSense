@@ -31,6 +31,7 @@ interface RawRow {
   freeToUse: Num;
   incoming: Num;
   forecast: Num;
+  suggestedQty: Num;
   minQty: Num | null;
   maxQty: Num | null;
   status: StockStatus;
@@ -69,6 +70,7 @@ export class StockQuantRepository {
         freeToUse: Number(r.freeToUse),
         incoming: Number(r.incoming),
         forecast: Number(r.forecast),
+        suggestedQty: Number(r.suggestedQty),
         minQty: num(r.minQty),
         maxQty: num(r.maxQty),
         status: r.status,
@@ -174,6 +176,15 @@ export class StockQuantRepository {
                COALESCE(i.qty, 0) AS incoming,
                COALESCE(o.qty, 0) + COALESCE(i.qty, 0) - COALESCE(r.qty, 0) AS forecast,
                rr."minQty", rr."maxQty",
+               -- Replenishment: once the forecast is at/under the min, order back up
+               -- to the max (or the min when no max is set).
+               CASE
+                 WHEN rr."minQty" IS NOT NULL
+                  AND COALESCE(o.qty, 0) + COALESCE(i.qty, 0) - COALESCE(r.qty, 0) <= rr."minQty"
+                 THEN GREATEST(COALESCE(rr."maxQty", rr."minQty")
+                   - (COALESCE(o.qty, 0) + COALESCE(i.qty, 0) - COALESCE(r.qty, 0)), 0)
+                 ELSE 0
+               END AS "suggestedQty",
                CASE
                  WHEN COALESCE(o.qty, 0) <= 0 THEN 'OUT'
                  WHEN rr."minQty" IS NOT NULL AND COALESCE(o.qty, 0) <= rr."minQty" THEN 'LOW'

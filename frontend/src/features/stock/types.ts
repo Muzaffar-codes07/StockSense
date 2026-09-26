@@ -15,6 +15,8 @@ export type StockRow = {
   freeToUse: number;
   incoming: number;
   forecast: number;
+  /** How much to order back up to the max once forecast <= min; 0 otherwise. */
+  suggestedQty: number;
   minQty: number | null;
   maxQty: number | null;
   status: StockStatus;

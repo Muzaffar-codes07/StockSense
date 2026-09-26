@@ -23,6 +23,7 @@ const row = (over: Partial<StockRow>): StockRow => ({
   freeToUse: 0,
   incoming: 0,
   forecast: 0,
+  suggestedQty: 0,
   minQty: null,
   maxQty: null,
   status: 'OUT',
@@ -40,6 +41,8 @@ const steel = row({
   forecast: 67,
   status: 'OK',
 });
+
+const screws = row({ id: "sc", name: "Screws M6", uom: "box", onHand: 12, forecast: 12, minQty: 20, maxQty: 100, suggestedQty: 88, status: "LOW" });
 
 const steelBreakdown = {
   productId: 's',
@@ -63,7 +66,7 @@ const steelBreakdown = {
 
 function renderPage() {
   get.mockImplementation(async (url: string) => {
-    if (url === '/stock') return { data: { data: [varnish, steel], page: 1, pageSize: 20, total: 2, totalPages: 1 } };
+    if (url === '/stock') return { data: { data: [varnish, steel, screws], page: 1, pageSize: 20, total: 3, totalPages: 1 } };
     if (url === '/stock/alerts') return { data: [varnish] };
     if (url === '/categories') return { data: [] };
     if (url === '/stock/s/breakdown') return { data: steelBreakdown };
@@ -106,6 +109,13 @@ describe('StockPage forecast column', () => {
     const cells = await cellsOf('Steel Rods');
     expect(cells.getByTitle('77 on hand + 0 incoming − 10 reserved')).toHaveTextContent('67 kg');
     expect(cells.queryByText(/incoming$/)).not.toBeInTheDocument();
+  });
+
+  it("suggests how much to reorder when the forecast falls to the minimum (audit #13)", async () => {
+    renderPage();
+    const cells = await cellsOf("Screws M6");
+    expect(cells.getByText("Reorder 88 box")).toHaveAttribute("title", "Forecast 12 is at or under the minimum 20: order up to 100");
+    expect((await cellsOf("Steel Rods")).queryByText(/Reorder/)).not.toBeInTheDocument();
   });
 
   it('accepts a lowercase ?status= in the URL (e.g. a hand-typed or shared link)', async () => {

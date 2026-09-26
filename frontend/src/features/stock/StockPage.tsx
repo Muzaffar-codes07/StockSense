@@ -87,7 +87,23 @@ export function StockPage({ onUpdate }: { onUpdate?: (row: StockRow) => void }) 
         </span>
       ),
     },
-    { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.status} /> },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (r) => (
+        <>
+          <StatusBadge status={r.status} />
+          {r.suggestedQty > 0 && (
+            <span
+              className="mt-1 block text-xs font-medium text-amber-700"
+              title={`Forecast ${formatQty(r.forecast)} is at or under the minimum ${formatQty(r.minQty ?? 0)}: order up to ${formatQty(r.maxQty ?? r.minQty ?? 0)}`}
+            >
+              Reorder {formatQty(r.suggestedQty)} {r.uom}
+            </span>
+          )}
+        </>
+      ),
+    },
     ...(onUpdate
       ? [
           {

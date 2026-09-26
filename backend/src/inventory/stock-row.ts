@@ -17,6 +17,8 @@ export interface StockRow {
   incoming: number;
   /** onHand + incoming − reserved: expected stock once open documents are done. */
   forecast: number;
+  /** Reorder suggestion: up to maxQty (or minQty) once forecast <= minQty; 0 otherwise. */
+  suggestedQty: number;
   minQty: number | null;
   maxQty: number | null;
   status: StockStatus;

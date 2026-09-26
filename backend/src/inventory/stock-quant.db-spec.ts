@@ -87,6 +87,40 @@ describe('stock_quant + StockQuantRepository (live DB)', () => {
     expect(rows[0].name).toBe(`${tag} Idle`);
   });
 
+  it('suggests reordering up to the max once the forecast is at or under the min (audit #13)', async () => {
+    // Steel: forecast 77, min 80, no max -> top up to the min: 3.
+    const [noMax] = (await repo.findRows({ search: `${tag} Steel` })).rows;
+    expect(noMax.suggestedQty).toBe(3);
+
+    await prisma.reorderRule.updateMany({ where: { productId: steel }, data: { maxQty: 200 } });
+    const ready = await prisma.delivery.create({
+      data: { status: 'READY', lines: { create: { productId: steel, qty: 7 } } },
+    });
+    try {
+      // Forecast 70 (77 - 7 promised) -> 200 - 70 = 130.
+      const [withMax] = (await repo.findRows({ search: `${tag} Steel` })).rows;
+      expect(withMax).toMatchObject({ forecast: 70, suggestedQty: 130 });
+
+      // An open receipt that lifts the forecast above the min cancels the suggestion.
+      const receipt = await prisma.receipt.create({
+        data: { status: 'READY', lines: { create: { productId: steel, qty: 20 } } },
+      });
+      try {
+        const [covered] = (await repo.findRows({ search: `${tag} Steel` })).rows;
+        expect(covered).toMatchObject({ forecast: 90, suggestedQty: 0 });
+      } finally {
+        await prisma.receipt.delete({ where: { id: receipt.id } });
+      }
+    } finally {
+      await prisma.delivery.delete({ where: { id: ready.id } });
+      await prisma.reorderRule.updateMany({ where: { productId: steel }, data: { maxQty: null } });
+    }
+
+    // No rule, no suggestion, even when out of stock.
+    const [idleRow] = (await repo.findRows({ search: `${tag} Idle` })).rows;
+    expect(idleRow.suggestedQty).toBe(0);
+  });
+
   it('counts KPIs including this data', async () => {
     const k = await repo.kpis();
     expect(k.lowStock).toBeGreaterThanOrEqual(1);
