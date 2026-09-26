@@ -5,3 +5,6 @@ export { FormField } from './FormField';
 export { FilterBar } from './FilterBar';
 export type { FilterOption } from './FilterBar';
 export { KpiCard } from './KpiCard';
+export { SelectField } from './SelectField';
+export type { SelectOption } from './SelectField';
+export { Pager } from './Pager';

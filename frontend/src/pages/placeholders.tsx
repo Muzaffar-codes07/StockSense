@@ -30,11 +30,6 @@ export const Dashboard = () => (
   </div>
 );
 
-// Role 3 — products CRUD, categories, reorder rules, stock per location.
-export const Products = () => (
-  <Placeholder title="Products" owner="Role 3 — Products & Stock" />
-);
-
 // Role 4 — receipts, deliveries, transfers, adjustments (tabs).
 export const Operations = () => (
   <Placeholder title="Operations" owner="Role 4 — Warehouse Operations" />
