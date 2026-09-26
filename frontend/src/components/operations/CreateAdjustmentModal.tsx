@@ -8,7 +8,7 @@ import {
   ProductItem,
 } from '../../lib/operations';
 import { Plus, Trash2 } from 'lucide-react';
-import { api } from '../../lib/api';
+import { stockApi } from '../../features/stock/api';
 
 interface Props {
   open: boolean;
@@ -55,12 +55,11 @@ export function CreateAdjustmentModal({ open, onClose, onSuccess }: Props) {
   const fetchStockOnHand = async (productId: string, locId: string, lineIndex: number) => {
     if (!productId || !locId) return;
     try {
-      // Query current on-hand if inventory stock endpoint is available
-      const res = await api.get('/inventory', { params: { productId, locationId: locId } });
-      const currentQty = res.data?.data?.[0]?.onHand ?? 0;
-      updateLine(lineIndex, 'recordedQty', Number(currentQty));
+      // Ledger on-hand per location (Role 3's stock API); none recorded here = 0.
+      const perLocation = await stockApi.productLocations(productId);
+      const here = perLocation.find((l) => l.locationId === locId);
+      updateLine(lineIndex, 'recordedQty', here?.qty ?? 0);
     } catch {
-      // If endpoint not ready, default recorded to 0
       updateLine(lineIndex, 'recordedQty', 0);
     }
   };
@@ -120,10 +119,11 @@ export function CreateAdjustmentModal({ open, onClose, onSuccess }: Props) {
     try {
       await createAdjustment({
         locationId,
+        // recordedQty is left to the server, which reads it from the ledger,
+        // so the posted diff never comes from a stale screen.
         lines: validLines.map((l) => ({
           productId: l.productId,
           countedQty: Number(l.countedQty),
-          recordedQty: Number(l.recordedQty),
         })),
       });
       onSuccess();
@@ -206,7 +206,8 @@ export function CreateAdjustmentModal({ open, onClose, onSuccess }: Props) {
                     <input
                       type="number"
                       value={line.recordedQty}
-                      onChange={(e) => updateLine(idx, 'recordedQty', parseFloat(e.target.value) || 0)}
+                      readOnly
+                      aria-label="Recorded quantity"
                       className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs bg-slate-100 text-slate-600"
                     />
                   </div>
