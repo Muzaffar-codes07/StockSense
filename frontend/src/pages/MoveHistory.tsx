@@ -4,19 +4,23 @@ import { getMoveHistory, MoveType, StockMove } from '../lib/operations';
 import { Table, Column } from '../components/ui/Table';
 import { FilterBar } from '../components/ui/FilterBar';
 import { Pager } from '../components/ui/Pager';
+import { useLocations } from '../features/stock/hooks';
 import { ArrowRight, History } from 'lucide-react';
 
 export function MoveHistory() {
   const [search, setSearch] = useState('');
   const [moveTypeFilter, setMoveTypeFilter] = useState<MoveType | ''>('');
+  const [locationId, setLocationId] = useState('');
   const [page, setPage] = useState(1);
+  const locations = useLocations();
 
   const { data: movesData, isLoading } = useQuery({
-    queryKey: ['operations', 'moves', moveTypeFilter, search, page],
+    queryKey: ['operations', 'moves', moveTypeFilter, locationId, search, page],
     queryFn: () =>
       getMoveHistory({
         moveType: moveTypeFilter || undefined,
         search: search || undefined,
+        locationId: locationId || undefined, // moves into or out of it
         page,
         pageSize: 50,
       }),
@@ -149,6 +153,7 @@ export function MoveHistory() {
         }}
       >
         <select
+          aria-label="Move type"
           value={moveTypeFilter}
           onChange={(e) => {
             setMoveTypeFilter(e.target.value as MoveType | '');
@@ -161,6 +166,22 @@ export function MoveHistory() {
           <option value="DELIVERY">Delivery (− Outflow)</option>
           <option value="INTERNAL">Internal Transfer</option>
           <option value="ADJUSTMENT">Inventory Adjustment</option>
+        </select>
+        <select
+          aria-label="Location"
+          value={locationId}
+          onChange={(e) => {
+            setLocationId(e.target.value);
+            setPage(1);
+          }}
+          className="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:border-indigo-500 focus:outline-none"
+        >
+          <option value="">All Locations</option>
+          {(locations.data ?? []).map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.warehouseName} · {l.name}
+            </option>
+          ))}
         </select>
       </FilterBar>
 

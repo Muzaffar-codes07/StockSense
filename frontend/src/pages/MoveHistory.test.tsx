@@ -26,7 +26,15 @@ const move = (n: number) => ({
 });
 
 function renderPage() {
-  get.mockImplementation((async (_url: string, config?: { params?: { page?: number } }) => {
+  get.mockImplementation((async (url: string, config?: { params?: { page?: number } }) => {
+    if (url === '/stock/locations') {
+      return {
+        data: [
+          { id: 'main', name: 'Main Store', type: 'STOCK', warehouseName: 'Main Warehouse' },
+          { id: 'rack', name: 'Production Rack', type: 'PRODUCTION', warehouseName: 'Main Warehouse' },
+        ],
+      };
+    }
     const page = config?.params?.page ?? 1;
     return { data: { data: [move(page)], page, pageSize: 50, total: 120, totalPages: 3 } };
   }) as never);
@@ -57,7 +65,16 @@ describe('Move History paging (audit P1)', () => {
     renderPage();
     await userEvent.click(await screen.findByRole('button', { name: 'Next' }));
     await screen.findByText('Page 2 of 3');
-    await userEvent.selectOptions(screen.getByRole('combobox'), 'DELIVERY');
+    await userEvent.selectOptions(screen.getByLabelText('Move type'), 'DELIVERY');
     expect(await screen.findByText('Page 1 of 3')).toBeInTheDocument();
+  });
+
+  it('filters by location (warehouse / location filter from the brief)', async () => {
+    renderPage();
+    await screen.findByText('Page 1 of 3');
+    await userEvent.selectOptions(await screen.findByLabelText('Location'), 'rack');
+    await screen.findByText('Page 1 of 3');
+    expect(get).toHaveBeenLastCalledWith('/operations/moves', { params: expect.objectContaining({ locationId: 'rack', page: 1 }) });
+    expect(screen.getByRole('option', { name: 'Main Warehouse · Production Rack' })).toBeInTheDocument();
   });
 });
