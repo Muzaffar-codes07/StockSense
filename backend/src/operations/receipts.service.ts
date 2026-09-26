@@ -13,6 +13,7 @@ import {
   UpdateReceiptDto,
   ValidateReceiptDto,
 } from './dto/receipt.dto';
+import { assertNotMarkingDone, claimForValidation } from './document-status';
 
 @Injectable()
 export class ReceiptsService {
@@ -121,6 +122,8 @@ export class ReceiptsService {
       throw new BadRequestException('Cannot edit a canceled receipt');
     }
 
+    assertNotMarkingDone(dto.status, 'receipt');
+
     return this.prisma.$transaction(async (tx) => {
       if (dto.lines) {
         await tx.receiptLine.deleteMany({ where: { receiptId: id } });
@@ -198,6 +201,7 @@ export class ReceiptsService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      await claimForValidation(tx.receipt, id, 'Receipt');
       for (const line of receipt.lines) {
         await this.stockService.postMove(
           {

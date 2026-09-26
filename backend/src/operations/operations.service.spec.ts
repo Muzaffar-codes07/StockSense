@@ -14,7 +14,7 @@ describe('Operations Services', () => {
 
     beforeEach(() => {
       const tx = {
-        receipt: { update: jest.fn().mockResolvedValue({ id: 'r1', status: DocStatus.DONE }) },
+        receipt: { updateMany: jest.fn().mockResolvedValue({ count: 1 }), update: jest.fn().mockResolvedValue({ id: 'r1', status: DocStatus.DONE }) },
         receiptLine: { deleteMany: jest.fn(), createMany: jest.fn() },
       };
       prisma = {
@@ -95,7 +95,7 @@ describe('Operations Services', () => {
 
     beforeEach(() => {
       const tx = {
-        delivery: { update: jest.fn().mockResolvedValue({ id: 'd1', status: DocStatus.DONE }) },
+        delivery: { updateMany: jest.fn().mockResolvedValue({ count: 1 }), update: jest.fn().mockResolvedValue({ id: 'd1', status: DocStatus.DONE }) },
         deliveryLine: { deleteMany: jest.fn(), createMany: jest.fn() },
       };
       prisma = {
@@ -149,7 +149,7 @@ describe('Operations Services', () => {
 
     beforeEach(() => {
       const tx = {
-        transfer: { update: jest.fn().mockResolvedValue({ id: 't1', status: DocStatus.DONE }) },
+        transfer: { updateMany: jest.fn().mockResolvedValue({ count: 1 }), update: jest.fn().mockResolvedValue({ id: 't1', status: DocStatus.DONE }) },
         transferLine: { deleteMany: jest.fn(), createMany: jest.fn() },
       };
       prisma = {
@@ -222,7 +222,7 @@ describe('Operations Services', () => {
 
     beforeEach(() => {
       const tx = {
-        adjustment: { update: jest.fn().mockResolvedValue({ id: 'adj-1', status: DocStatus.DONE }) },
+        adjustment: { updateMany: jest.fn().mockResolvedValue({ count: 1 }), update: jest.fn().mockResolvedValue({ id: 'adj-1', status: DocStatus.DONE }) },
       };
       prisma = {
         $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),

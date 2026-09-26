@@ -12,6 +12,7 @@ import {
   OperationQueryDto,
   UpdateAdjustmentDto,
 } from './dto/adjustment.dto';
+import { assertNotMarkingDone, claimForValidation } from './document-status';
 
 @Injectable()
 export class AdjustmentsService {
@@ -146,6 +147,8 @@ export class AdjustmentsService {
       throw new BadRequestException('Cannot edit a canceled adjustment');
     }
 
+    assertNotMarkingDone(dto.status, 'adjustment');
+
     return this.prisma.$transaction(async (tx) => {
       if (dto.lines) {
         const preparedLines = await Promise.all(
@@ -228,6 +231,7 @@ export class AdjustmentsService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      await claimForValidation(tx.adjustment, id, 'Adjustment');
       for (const line of adjustment.lines) {
         const diffNum = line.diff.toNumber();
         if (diffNum > 0) {

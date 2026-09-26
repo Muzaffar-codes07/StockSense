@@ -12,6 +12,7 @@ import {
   OperationQueryDto,
   UpdateTransferDto,
 } from './dto/transfer.dto';
+import { assertNotMarkingDone, claimForValidation } from './document-status';
 
 @Injectable()
 export class TransfersService {
@@ -144,6 +145,8 @@ export class TransfersService {
       }
     }
 
+    assertNotMarkingDone(dto.status, 'transfer');
+
     return this.prisma.$transaction(async (tx) => {
       if (dto.lines) {
         await tx.transferLine.deleteMany({ where: { transferId: id } });
@@ -216,6 +219,7 @@ export class TransfersService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      await claimForValidation(tx.transfer, id, 'Transfer');
       for (const line of transfer.lines) {
         await this.stockService.postMove(
           {

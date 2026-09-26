@@ -13,6 +13,7 @@ import {
   UpdateDeliveryDto,
   ValidateDeliveryDto,
 } from './dto/delivery.dto';
+import { assertNotMarkingDone, claimForValidation } from './document-status';
 
 @Injectable()
 export class DeliveriesService {
@@ -121,6 +122,8 @@ export class DeliveriesService {
       throw new BadRequestException('Cannot edit a canceled delivery');
     }
 
+    assertNotMarkingDone(dto.status, 'delivery');
+
     return this.prisma.$transaction(async (tx) => {
       if (dto.lines) {
         await tx.deliveryLine.deleteMany({ where: { deliveryId: id } });
@@ -198,6 +201,7 @@ export class DeliveriesService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      await claimForValidation(tx.delivery, id, 'Delivery');
       for (const line of delivery.lines) {
         await this.stockService.postMove(
           {
