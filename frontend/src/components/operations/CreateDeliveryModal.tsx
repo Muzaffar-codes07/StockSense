@@ -157,10 +157,13 @@ export function CreateDeliveryModal({ open, onClose, onSuccess }: Props) {
           <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
             {lines.map((line, idx) => {
               const selectedProd = products.find((p) => p.id === line.productId);
+              // Mockup: mark the line red when the product isn't in stock (#12).
+              const free = selectedProd?.freeToUse;
+              const short = free !== undefined && Number(line.qty) > free;
               return (
+                <div key={idx}>
                 <div
-                  key={idx}
-                  className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200"
+                  className={`flex items-center gap-2 p-2 rounded-lg border ${short ? 'bg-red-50 border-red-300' : 'bg-slate-50 border-slate-200'}`}
                 >
                   <div className="flex-1">
                     <select
@@ -203,6 +206,12 @@ export function CreateDeliveryModal({ open, onClose, onSuccess }: Props) {
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
+                </div>
+                {short && (
+                  <p className="mt-1 pl-2 text-xs font-medium text-red-600">
+                    Only {free} {selectedProd?.uom ?? ''} free to use
+                  </p>
+                )}
                 </div>
               );
             })}

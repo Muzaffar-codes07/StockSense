@@ -24,6 +24,9 @@ export interface ProductItem {
   uom: string;
   unitCost?: number;
   category?: { id: string; name: string };
+  /** From GET /products (Role 3 stock rows): on hand minus open deliveries. */
+  onHand?: number;
+  freeToUse?: number;
 }
 
 export interface PaginatedResponse<T> {
