@@ -6,7 +6,9 @@ vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn() } }));
 const post = vi.mocked(api.post);
 
 describe('stockApi.adjustStock', () => {
-  beforeEach(() => post.mockReset());
+  beforeEach(() => {
+    post.mockReset();
+  });
 
   it('creates an adjustment without recordedQty, then validates it', async () => {
     post.mockResolvedValueOnce({ data: { id: 'adj-9' } }).mockResolvedValueOnce({ data: { status: 'DONE' } });
