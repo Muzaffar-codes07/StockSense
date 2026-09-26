@@ -1,4 +1,6 @@
 FROM node:20-alpine
+# Prisma's engines need OpenSSL, which the alpine image does not ship.
+RUN apk add --no-cache openssl
 WORKDIR /app
 
 # Install deps (leverage layer caching)
