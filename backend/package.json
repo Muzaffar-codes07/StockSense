@@ -12,6 +12,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "ts-node prisma/seed.ts",
     "test": "jest",
+    "test:db": "jest -c jest.db.config.js --runInBand",
     "lint": "eslint \"src/**/*.ts\" --fix"
   },
   "prisma": {

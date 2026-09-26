@@ -4,6 +4,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { StockModule } from './stock/stock.module';
 import { AuthModule } from './auth/auth.module';
 import { WarehousesModule } from './warehouses/warehouses.module';
+import { InventoryModule } from './inventory/inventory.module';
 import { HealthController } from './health/health.controller';
 import { MetaController } from './meta/meta.controller';
 
@@ -17,6 +18,7 @@ import { MetaController } from './meta/meta.controller';
     StockModule,
     AuthModule,
     WarehousesModule,
+    InventoryModule,
   ],
   controllers: [HealthController, MetaController],
 })

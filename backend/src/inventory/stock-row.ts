@@ -1,0 +1,48 @@
+export type StockStatus = 'OK' | 'LOW' | 'OUT';
+export const STOCK_STATUSES: StockStatus[] = ['OK', 'LOW', 'OUT'];
+
+/** One active product with its derived stock figures. */
+export interface StockRow {
+  id: string;
+  name: string;
+  sku: string;
+  uom: string;
+  unitCost: number;
+  categoryId: string | null;
+  categoryName: string | null;
+  onHand: number;
+  reserved: number;
+  freeToUse: number;
+  minQty: number | null;
+  maxQty: number | null;
+  status: StockStatus;
+}
+
+export interface StockFilter {
+  search?: string;
+  categoryId?: string;
+  statuses?: StockStatus[];
+  skip?: number;
+  take?: number;
+}
+
+export interface LocationStock {
+  locationId: string;
+  locationName: string;
+  warehouseName: string;
+  qty: number;
+}
+
+export interface LocationOption {
+  id: string;
+  name: string;
+  type: string;
+  warehouseName: string;
+}
+
+export interface StockKpis {
+  totalProductsInStock: number;
+  lowStock: number;
+  outOfStock: number;
+  stockValue: number;
+}
