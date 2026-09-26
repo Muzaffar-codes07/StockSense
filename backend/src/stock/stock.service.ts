@@ -78,28 +78,30 @@ export class StockService {
     qty: number,
   ) {
     await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${productId} || ':' || ${locationId}))`;
-    const available = await this.stockOnHand(productId, locationId, db);
-    if (new Prisma.Decimal(available).lessThan(qty)) {
+    // Full-Decimal comparison — no JS-float round-trip in the availability guard.
+    const available = await this.onHandDecimal(productId, locationId, db);
+    if (available.lessThan(new Prisma.Decimal(qty))) {
       const product = await db.product.findUnique({
         where: { id: productId },
         select: { name: true, sku: true },
       });
       const label = product ? `${product.name} (${product.sku})` : productId;
       throw new BadRequestException(
-        `Not enough stock for ${label}: ${available} available, ${qty} requested`,
+        `Not enough stock for ${label}: ${available.toString()} available, ${qty} requested`,
       );
     }
   }
 
   /**
-   * Current on-hand quantity of a product at a single location. Pass `db` to
-   * read inside a transaction.
+   * Exact on-hand as a Decimal (in − out) at a location. Used by the guard so
+   * the availability check keeps full precision. `stockOnHand` is the
+   * number-returning public wrapper. Pass `db` to read inside a transaction.
    */
-  async stockOnHand(
+  private async onHandDecimal(
     productId: string,
     locationId: string,
     db: Prisma.TransactionClient = this.prisma,
-  ): Promise<number> {
+  ): Promise<Prisma.Decimal> {
     const [inAgg, outAgg] = await Promise.all([
       db.stockMove.aggregate({
         _sum: { qty: true },
@@ -111,6 +113,18 @@ export class StockService {
       }),
     ]);
     return this.net(inAgg._sum.qty, outAgg._sum.qty);
+  }
+
+  /**
+   * Current on-hand quantity of a product at a single location. Pass `db` to
+   * read inside a transaction.
+   */
+  async stockOnHand(
+    productId: string,
+    locationId: string,
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<number> {
+    return (await this.onHandDecimal(productId, locationId, db)).toNumber();
   }
 
   /** Total on-hand of a product across all locations. */
@@ -125,15 +139,15 @@ export class StockService {
         where: { productId, fromLocationId: { not: null } },
       }),
     ]);
-    return this.net(inAgg._sum.qty, outAgg._sum.qty);
+    return this.net(inAgg._sum.qty, outAgg._sum.qty).toNumber();
   }
 
-  /** Exact Decimal subtraction of summed inputs/outputs, returned as a number. */
+  /** Exact Decimal subtraction of summed inputs/outputs. */
   private net(
     inSum: Prisma.Decimal | null,
     outSum: Prisma.Decimal | null,
-  ): number {
+  ): Prisma.Decimal {
     const zero = new Prisma.Decimal(0);
-    return (inSum ?? zero).minus(outSum ?? zero).toNumber();
+    return (inSum ?? zero).minus(outSum ?? zero);
   }
 }

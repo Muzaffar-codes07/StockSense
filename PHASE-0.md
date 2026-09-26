@@ -13,10 +13,10 @@ Don't start feature work on `main` until both gates are checked.
 | # | Contract | Where it lives | Status |
 |---|----------|----------------|--------|
 | 1 | **DB schema** — every entity, frozen as a committed migration | `backend/prisma/schema.prisma`, `backend/prisma/migrations/` | ✅ validates, 22 FKs, migration committed |
-| 2 | **Stock Ledger** — `postMove()` + derived `stockOnHand()` / `totalStock()` | `backend/src/stock/stock.service.ts` | ✅ implemented + 7 unit tests passing |
+| 2 | **Stock Ledger** — `postMove()` + derived `stockOnHand()` / `totalStock()` | `backend/src/stock/stock.service.ts` | ✅ implemented + unit-tested (8 ledger specs; full suite green) |
 | 3 | **Doc status enum** — `Draft → Waiting → Ready → Done → Canceled` | `schema.prisma` (`DocStatus`) | ✅ |
 | 4 | **API + validation + list/filter convention** | `main.ts` (ValidationPipe), `common/http-exception.filter.ts`, `common/pagination.dto.ts` | ✅ |
-| 5 | **Auth token + protected-route convention** | `auth/` (JWT), `auth/jwt-auth.guard.ts`, `common/current-user.decorator.ts` | ✅ signup/login work; OTP reset stubbed for Role 1 |
+| 5 | **Auth token + protected-route convention** | `auth/` (JWT), `auth/jwt-auth.guard.ts`, `common/current-user.decorator.ts`, `common/roles.guard.ts` | ✅ signup/login/JWT; OTP reset implemented (hashed, 10-min TTL, 5-attempt cap) + tested; rate-limited; role-based authorization (ADMIN/MANAGER/STAFF) |
 | 6 | **UI shell + shared components** | `frontend/src/components/layout/`, `frontend/src/components/ui/` | ✅ shell + Table/Modal/FormField/FilterBar/KpiCard |
 
 ---
@@ -28,7 +28,7 @@ Don't start feature work on `main` until both gates are checked.
 - [x] Init migration committed (`backend/prisma/migrations/*_init/`)
 - [x] Backend builds — `cd backend && npm run build` → `dist/main.js`
 - [x] Frontend builds — `cd frontend && npm run build`
-- [x] Ledger tests pass — `cd backend && npm test` (7/7)
+- [x] Tests pass — `cd backend && npm test` (full unit suite green)
 - [x] API boots and `GET /health` returns 200 (graceful `db:false` when DB is down)
 
 ---
@@ -52,7 +52,7 @@ npm run start:dev
 - [x] `prisma:seed` runs without error (admin user, 1 warehouse, 2 locations, 2 products)
 - [x] `GET /health` shows `"db": true`
 - [x] View works: `SELECT * FROM stock_quant` returns without error
-- [x] Live integration test green: `npm run test:db` → 8/8, demo flow nets **77**, per-location split 67/10, KPIs/alerts/free-to-use correct
+- [x] Live integration test green: `npm run test:db` → all green, demo flow nets **77**, per-location split 67/10, KPIs/alerts/free-to-use correct
 - [x] Auth against real DB: login, `/auth/me`, OTP request (returns `devOtp`) all OK
 - [x] Signed off by: **Role 1 — validated 2026-09-26 via a user-space Postgres 17.11 (mise) run.**
       Engineering risk closed (migration + view + ledger flow proven on real Postgres). The

@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { randomInt } from 'node:crypto';
+import { UserRole } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto, ResetPasswordDto, SignUpDto } from './dto/auth.dto';
@@ -27,13 +28,17 @@ export class AuthService {
     const existing = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
+    // NOTE (§8.13): this reveals whether an email is registered (enumeration).
+    // A full fix needs email-verification signup (no email infra here) and the
+    // UX must tell a real user their address is taken. Mitigated by the auth
+    // rate limiter (see AuthController @Throttle). Accepted tradeoff for now.
     if (existing) throw new ConflictException('Email already registered');
 
     const passwordHash = await argon2.hash(dto.password);
     const user = await this.prisma.user.create({
       data: { name: dto.name, email: dto.email, passwordHash },
     });
-    return this.issueTokens(user.id, user.email);
+    return this.issueTokens(user.id, user.email, user.role);
   }
 
   async login(dto: LoginDto) {
@@ -43,14 +48,14 @@ export class AuthService {
     if (!user || !(await argon2.verify(user.passwordHash, dto.password))) {
       throw new UnauthorizedException('Invalid email or password');
     }
-    return this.issueTokens(user.id, user.email);
+    return this.issueTokens(user.id, user.email, user.role);
   }
 
   // Current user for the frontend's login-state check (never returns the hash).
   async me(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, name: true, email: true, createdAt: true },
+      select: { id: true, name: true, email: true, role: true, createdAt: true },
     });
     if (!user) throw new UnauthorizedException('User no longer exists');
     return user;
@@ -65,7 +70,13 @@ export class AuthService {
       message: 'If that email is registered, a reset code has been sent.',
     };
     const user = await this.prisma.user.findUnique({ where: { email } });
-    if (!user) return generic;
+    if (!user) {
+      // §8.13: equalize timing — the known path below does an argon2 hash, so do
+      // a throwaway one here too, otherwise response time leaks whether the
+      // account exists.
+      await argon2.hash(String(randomInt(0, 1_000_000)).padStart(6, '0'));
+      return generic;
+    }
 
     // Only one active code at a time — invalidate previous unused ones.
     await this.prisma.passwordResetOtp.updateMany({
@@ -136,8 +147,8 @@ export class AuthService {
     return { message: 'Password updated. Please log in.' };
   }
 
-  private async issueTokens(sub: string, email: string) {
-    const payload = { sub, email };
+  private async issueTokens(sub: string, email: string, role: UserRole) {
+    const payload = { sub, email, role };
     const accessToken = await this.jwt.signAsync(payload, {
       secret: process.env.JWT_SECRET,
       expiresIn: process.env.JWT_EXPIRES_IN ?? '15m',

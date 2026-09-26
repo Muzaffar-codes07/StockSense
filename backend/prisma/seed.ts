@@ -9,8 +9,8 @@ async function main() {
   const passwordHash = await argon2.hash('password123');
   await prisma.user.upsert({
     where: { email: 'admin@stocksense.dev' },
-    update: {},
-    create: { name: 'Admin', email: 'admin@stocksense.dev', passwordHash },
+    update: { role: 'ADMIN' },
+    create: { name: 'Admin', email: 'admin@stocksense.dev', passwordHash, role: 'ADMIN' },
   });
 
   const wh = await prisma.warehouse.create({

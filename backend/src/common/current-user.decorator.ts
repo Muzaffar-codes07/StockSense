@@ -1,8 +1,10 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
+import type { UserRole } from '@prisma/client';
 
 export interface AuthUser {
   sub: string;
   email: string;
+  role: UserRole;
 }
 
 // Usage: someHandler(@CurrentUser() user: AuthUser) { ... }

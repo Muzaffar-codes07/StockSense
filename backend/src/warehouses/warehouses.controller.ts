@@ -8,7 +8,10 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../common/roles.guard';
+import { Roles } from '../common/roles.decorator';
 import { WarehousesService } from './warehouses.service';
 import {
   CreateLocationDto,
@@ -17,9 +20,10 @@ import {
   UpdateWarehouseDto,
 } from './dto/warehouse.dto';
 
-// GET /warehouses          -> warehouses (with nested locations) for filters
-// GET /locations?warehouseId= -> flat location list for pickers
-@UseGuards(JwtAuthGuard)
+// Reads: any authenticated user (filters/pickers need them). Mutations: MANAGER+
+// (ADMIN is a superuser via RolesGuard). GET /warehouses (nested locations) and
+// GET /locations?warehouseId= power the shared selectors.
+@UseGuards(JwtAuthGuard, RolesGuard)
 @Controller()
 export class WarehousesController {
   constructor(private readonly warehouses: WarehousesService) {}
@@ -29,11 +33,13 @@ export class WarehousesController {
     return this.warehouses.listWarehouses();
   }
 
+  @Roles(UserRole.MANAGER)
   @Post('warehouses')
   createWarehouse(@Body() dto: CreateWarehouseDto) {
     return this.warehouses.createWarehouse(dto);
   }
 
+  @Roles(UserRole.MANAGER)
   @Patch('warehouses/:id')
   updateWarehouse(@Param('id') id: string, @Body() dto: UpdateWarehouseDto) {
     return this.warehouses.updateWarehouse(id, dto);
@@ -44,6 +50,7 @@ export class WarehousesController {
     return this.warehouses.listLocations(query.warehouseId);
   }
 
+  @Roles(UserRole.MANAGER)
   @Post('locations')
   createLocation(@Body() dto: CreateLocationDto) {
     return this.warehouses.createLocation(dto);
