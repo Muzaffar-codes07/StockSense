@@ -35,7 +35,8 @@ Don't start feature work on `main` until both gates are checked.
 
 ## ⚠️ Gate A — Live database run (needs a machine with Docker or local Postgres)
 
-Nobody has run the schema against a real database yet. Do this once:
+Nobody has run the schema against a real database yet. Do this once — full
+step-by-step in **[docs/GATE-A-RUNBOOK.md](./docs/GATE-A-RUNBOOK.md)**:
 
 ```bash
 cp .env.example .env
