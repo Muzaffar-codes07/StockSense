@@ -13,12 +13,14 @@ describe('HTTP API (live DB)', () => {
   const prisma = new PrismaClient();
   const stock = new StockService(prisma as never);
   const tag = `E${Date.now()}`;
-  const email = `${tag.toLowerCase()}@e2e.test`;
+  const email = `${tag.toLowerCase()}@e2e.test`; // promoted to MANAGER in beforeAll
+  const staffEmail = `staff-${tag.toLowerCase()}@e2e.test`; // stays STAFF (the sign-up default)
   const password = 'correct-horse-1';
   const missing = '00000000-0000-4000-8000-000000000000';
 
   let app: INestApplication;
   let token: string;
+  let staffToken: string;
   let warehouseId: string;
   let store: string;
   let shelf: string;
@@ -39,11 +41,13 @@ describe('HTTP API (live DB)', () => {
     app = configureApp(moduleRef.createNestApplication());
     await app.init();
 
-    const signup = await http()
-      .post('/auth/signup')
-      .send({ name: 'E2E Tester', email, password })
-      .expect(201);
-    token = signup.body.accessToken;
+    await http().post('/auth/signup').send({ name: 'E2E Manager', email, password }).expect(201);
+    // Role is carried in the JWT, so log in again after promoting.
+    await prisma.user.update({ where: { email }, data: { role: 'MANAGER' } });
+    token = (await http().post('/auth/login').send({ email, password }).expect(201)).body.accessToken;
+    staffToken = (
+      await http().post('/auth/signup').send({ name: 'E2E Staff', email: staffEmail, password }).expect(201)
+    ).body.accessToken;
 
     warehouseId = (await prisma.warehouse.create({ data: { name: `${tag} WH` } })).id;
     store = (await prisma.location.create({ data: { warehouseId, name: `${tag} Store` } })).id;
@@ -65,10 +69,12 @@ describe('HTTP API (live DB)', () => {
     await prisma.product.delete({ where: { id: productId } });
     await prisma.location.deleteMany({ where: { warehouseId } });
     await prisma.warehouse.delete({ where: { id: warehouseId } });
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (user) {
-      await prisma.passwordResetOtp.deleteMany({ where: { userId: user.id } });
-      await prisma.user.delete({ where: { id: user.id } });
+    for (const address of [email, staffEmail]) {
+      const user = await prisma.user.findUnique({ where: { email: address } });
+      if (user) {
+        await prisma.passwordResetOtp.deleteMany({ where: { userId: user.id } });
+        await prisma.user.delete({ where: { id: user.id } });
+      }
     }
     await prisma.$disconnect();
     await app.close();
@@ -128,6 +134,50 @@ describe('HTTP API (live DB)', () => {
           status: 401,
         });
       }
+    });
+  });
+
+  describe('role-based access on products and categories (#18)', () => {
+    const asStaff = (method: 'get' | 'post' | 'patch' | 'put' | 'delete', url: string) =>
+      http()[method](url).set('Authorization', `Bearer ${staffToken}`);
+
+    it('STAFF gets 403 on every product and category change', async () => {
+      const categoryId = (await prisma.category.create({ data: { name: `${tag} Cat` } })).id;
+      try {
+        const attempts: [typeof asStaff extends (m: infer M, u: string) => unknown ? M : never, string, object][] = [
+          ['post', '/products', { name: `${tag} X`, sku: `${tag}-X`, uom: 'unit', unitCost: 1 }],
+          ['patch', `/products/${productId}`, { name: 'Renamed' }],
+          ['delete', `/products/${productId}`, {}],
+          ['put', `/products/${productId}/reorder-rule`, { minQty: 1 }],
+          ['delete', `/products/${productId}/reorder-rule`, {}],
+          ['post', '/categories', { name: `${tag} New` }],
+          ['patch', `/categories/${categoryId}`, { name: `${tag} Renamed` }],
+          ['delete', `/categories/${categoryId}`, {}],
+        ];
+        for (const [method, url, body] of attempts) {
+          const res = await asStaff(method, url).send(body);
+          expect({ route: `${method} ${url}`, status: res.status }).toEqual({ route: `${method} ${url}`, status: 403 });
+        }
+        // Nothing changed.
+        const product = await prisma.product.findUniqueOrThrow({ where: { id: productId } });
+        expect([product.name, product.isActive]).toEqual([`${tag} Steel`, true]);
+        expect(await prisma.category.count({ where: { id: categoryId } })).toBe(1);
+      } finally {
+        await prisma.product.deleteMany({ where: { sku: `${tag}-X` } }); // only exists on a regression
+        await prisma.category.delete({ where: { id: categoryId } });
+      }
+    });
+
+    it('STAFF can still read products, categories and stock', async () => {
+      for (const url of ['/products', `/products/${productId}`, '/categories', '/stock', `/stock/${productId}/breakdown`]) {
+        await asStaff('get', url).expect(200);
+      }
+    });
+
+    it('MANAGER can change products and categories', async () => {
+      await authed('patch', `/products/${productId}`).send({ unitCost: 2 }).expect(200);
+      const created = await authed('post', '/categories').send({ name: `${tag} Mgr` }).expect(201);
+      await http().delete(`/categories/${created.body.id}`).set('Authorization', `Bearer ${token}`).expect(204);
     });
   });
 

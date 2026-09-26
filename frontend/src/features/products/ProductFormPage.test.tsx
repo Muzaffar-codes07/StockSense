@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/lib/api';
@@ -57,5 +58,13 @@ describe('ProductFormPage archived state', () => {
     renderProduct(product(true));
     expect(await screen.findByRole('button', { name: 'Archive product' })).toBeInTheDocument();
     expect(screen.queryByText('Archived')).not.toBeInTheDocument();
+  });
+
+  it('shows why removing a reorder rule failed (e.g. a STAFF user gets 403)', async () => {
+    vi.mocked(api.delete).mockRejectedValue(new Error('Requires role: MANAGER (you are STAFF)'));
+    renderProduct({ ...product(true), reorderRule: { minQty: 5, maxQty: null } });
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove rule' }));
+    expect(await screen.findByText('Requires role: MANAGER (you are STAFF)')).toBeInTheDocument();
+    expect(screen.queryByText('Reorder rule removed.')).not.toBeInTheDocument();
   });
 });

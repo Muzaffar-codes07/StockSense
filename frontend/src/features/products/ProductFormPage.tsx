@@ -232,9 +232,14 @@ function ReorderRuleCard({ productId, rule }: { productId: string; rule: Reorder
   });
 
   const onRemove = async () => {
-    await removeRule.mutateAsync();
-    reset({ minQty: 0, maxQty: undefined });
-    setMessage('Reorder rule removed.');
+    setMessage(null);
+    try {
+      await removeRule.mutateAsync();
+      reset({ minQty: 0, maxQty: undefined });
+      setMessage('Reorder rule removed.');
+    } catch (e) {
+      setMessage((e as Error).message);
+    }
   };
 
   return (
