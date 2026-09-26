@@ -1,15 +1,7 @@
-import { useState, useEffect, type FormEvent } from 'react';
-import { Modal } from '../ui/Modal';
-import {
-  createReceipt,
-  getPartners,
-  getLocations,
-  getProductsList,
-  Partner,
-  LocationItem,
-  ProductItem,
-} from '../../lib/operations';
-import { Plus, Trash2 } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
+import { Modal, Notice } from '@/components/ui';
+import { createDelivery, createReceipt } from '@/lib/operations';
+import { DialogFooter, FieldLabel, LineCard, LinesHeader, locationOptions, miniControl, NativeSelect, productOptions, useDocFormData } from './parts';
 
 interface Props {
   open: boolean;
@@ -19,213 +11,159 @@ interface Props {
 
 interface LineState {
   productId: string;
-  qty: number;
+  qty: string;
 }
 
-export function CreateReceiptModal({ open, onClose, onSuccess }: Props) {
-  const [partners, setPartners] = useState<Partner[]>([]);
-  const [locations, setLocations] = useState<LocationItem[]>([]);
-  const [products, setProducts] = useState<ProductItem[]>([]);
+type Kind = 'receipt' | 'delivery';
+
+const COPY: Record<Kind, { title: string; description: string; partner: string; partnerPlaceholder: string; location: string; submit: string; failed: string }> = {
+  receipt: {
+    title: 'New receipt',
+    description: 'Goods expected from a supplier. Stock is added when the receipt is validated.',
+    partner: 'Supplier',
+    partnerPlaceholder: 'No supplier',
+    location: 'Receive into',
+    submit: 'Create receipt',
+    failed: 'Failed to create receipt',
+  },
+  delivery: {
+    title: 'New delivery',
+    description: 'Goods going to a customer. Stock is reserved while open and removed when validated.',
+    partner: 'Customer',
+    partnerPlaceholder: 'No customer',
+    location: 'Ship from',
+    submit: 'Create delivery',
+    failed: 'Failed to create delivery order',
+  },
+};
+
+/** Receipts and deliveries share one form: a partner, a location and product lines. */
+function PartnerDocModal({ kind, open, onClose, onSuccess }: Props & { kind: Kind }) {
+  const copy = COPY[kind];
+  const formId = `create-${kind}-form`;
   const [partnerId, setPartnerId] = useState('');
-  const [destinationLocationId, setDestinationLocationId] = useState('');
-  const [lines, setLines] = useState<LineState[]>([{ productId: '', qty: 1 }]);
+  const [locationId, setLocationId] = useState('');
+  const [lines, setLines] = useState<LineState[]>([{ productId: '', qty: '1' }]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (open) {
-      setError(null);
-      setPartnerId('');
-      setDestinationLocationId('');
-      setLines([{ productId: '', qty: 1 }]);
-      Promise.all([
-        getPartners('SUPPLIER').catch(() => []),
-        getLocations().catch(() => []),
-        getProductsList().catch(() => []),
-      ]).then(([pts, locs, prods]) => {
-        setPartners(pts);
-        setLocations(locs);
-        setProducts(prods);
-        if (locs.length > 0) setDestinationLocationId(locs[0].id);
-        if (prods.length > 0) setLines([{ productId: prods[0].id, qty: 1 }]);
-      });
-    }
-  }, [open]);
+  const data = useDocFormData(open, kind === 'receipt' ? 'SUPPLIER' : 'CUSTOMER', (d) => {
+    setError(null);
+    setPartnerId('');
+    setLocationId(d.locations[0]?.id ?? '');
+    setLines([{ productId: d.products[0]?.id ?? '', qty: '1' }]);
+  });
 
-  const addLine = () => {
-    const defaultProduct = products[0]?.id ?? '';
-    setLines([...lines, { productId: defaultProduct, qty: 1 }]);
-  };
-
-  const removeLine = (index: number) => {
-    if (lines.length === 1) return;
-    setLines(lines.filter((_, i) => i !== index));
-  };
-
-  const updateLine = (index: number, field: keyof LineState, value: string | number) => {
-    const newLines = [...lines];
-    newLines[index] = { ...newLines[index], [field]: value };
-    setLines(newLines);
-  };
+  const updateLine = (index: number, patch: Partial<LineState>) =>
+    setLines((prev) => prev.map((l, i) => (i === index ? { ...l, ...patch } : l)));
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-
-    const validLines = lines.filter((l) => l.productId && l.qty > 0);
-    if (validLines.length === 0) {
-      setError('Please add at least one line item with a valid product and quantity');
-      return;
-    }
+    const validLines = lines.filter((l) => l.productId && Number(l.qty) > 0);
+    if (validLines.length === 0) return setError('Add at least one product with a quantity above 0.');
+    if (validLines.length !== lines.length) return setError('Every line needs a product and a quantity above 0.');
 
     setLoading(true);
     try {
-      await createReceipt({
+      const payload = {
         partnerId: partnerId || undefined,
-        destinationLocationId: destinationLocationId || undefined,
         lines: validLines.map((l) => ({ productId: l.productId, qty: Number(l.qty) })),
-      });
+      };
+      if (kind === 'receipt') await createReceipt({ ...payload, destinationLocationId: locationId || undefined });
+      else await createDelivery({ ...payload, sourceLocationId: locationId || undefined });
       onSuccess();
       onClose();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to create receipt');
+      setError(err instanceof Error ? err.message : copy.failed);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Modal open={open} title="Create New Receipt" onClose={onClose}>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {error && (
-          <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600 border border-red-200">
-            {error}
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <Modal
+      open={open}
+      title={copy.title}
+      description={copy.description}
+      onClose={onClose}
+      size="lg"
+      footer={<DialogFooter formId={formId} submitLabel={copy.submit} loading={loading} onCancel={onClose} />}
+    >
+      <form id={formId} onSubmit={handleSubmit} className="space-y-5" noValidate>
+        <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-              Supplier / Vendor
-            </label>
-            <select
+            <FieldLabel htmlFor={`${formId}-partner`}>{copy.partner}</FieldLabel>
+            <NativeSelect
+              id={`${formId}-partner`}
               value={partnerId}
-              onChange={(e) => setPartnerId(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none bg-white"
-            >
-              <option value="">Select Vendor (Optional)</option>
-              {partners.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+              onChange={setPartnerId}
+              placeholder={copy.partnerPlaceholder}
+              options={data.partners.map((p) => ({ value: p.id, label: p.name }))}
+            />
           </div>
-
           <div>
-            <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-              Destination Location
-            </label>
-            <select
-              value={destinationLocationId}
-              onChange={(e) => setDestinationLocationId(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none bg-white"
-            >
-              <option value="">Select Location</option>
-              {locations.map((loc) => (
-                <option key={loc.id} value={loc.id}>
-                  {loc.warehouse?.name ? `${loc.warehouse.name} - ` : ''}
-                  {loc.name}
-                </option>
-              ))}
-            </select>
+            <FieldLabel htmlFor={`${formId}-location`}>{copy.location}</FieldLabel>
+            <NativeSelect id={`${formId}-location`} value={locationId} onChange={setLocationId} placeholder="Choose later" options={locationOptions(data.locations)} />
           </div>
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-slate-600 uppercase">Line Items</span>
-            <button
-              type="button"
-              onClick={addLine}
-              className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add Product
-            </button>
-          </div>
-
-          <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+          <LinesHeader
+            title="Products"
+            hint={data.loading ? 'Loading products…' : data.products.length === 0 ? 'No products available yet.' : undefined}
+            onAdd={() => setLines((prev) => [...prev, { productId: data.products[0]?.id ?? '', qty: '1' }])}
+            disabled={data.products.length === 0}
+          />
+          <div className="scroll-quiet max-h-72 space-y-2 overflow-y-auto">
             {lines.map((line, idx) => {
-              const selectedProd = products.find((p) => p.id === line.productId);
+              const uom = data.products.find((p) => p.id === line.productId)?.uom ?? 'unit';
               return (
-                <div
-                  key={idx}
-                  className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 border border-slate-200"
-                >
-                  <div className="flex-1">
-                    <select
-                      value={line.productId}
-                      onChange={(e) => updateLine(idx, 'productId', e.target.value)}
-                      className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-xs focus:border-indigo-500 focus:outline-none bg-white"
-                      required
-                    >
-                      <option value="">Select product...</option>
-                      {products.map((prod) => (
-                        <option key={prod.id} value={prod.id}>
-                          {prod.name} ({prod.sku})
-                        </option>
-                      ))}
-                    </select>
+                <LineCard key={idx} index={idx} canRemove={lines.length > 1} onRemove={() => setLines((prev) => prev.filter((_, i) => i !== idx))}>
+                  <div className="grid gap-2 sm:grid-cols-[1fr_128px]">
+                    <div>
+                      <FieldLabel htmlFor={`${formId}-p${idx}`}>Product</FieldLabel>
+                      <NativeSelect
+                        id={`${formId}-p${idx}`}
+                        value={line.productId}
+                        onChange={(v) => updateLine(idx, { productId: v })}
+                        placeholder="Select product…"
+                        options={productOptions(data.products)}
+                      />
+                    </div>
+                    <div>
+                      <FieldLabel htmlFor={`${formId}-q${idx}`}>Quantity</FieldLabel>
+                      <div className="relative">
+                        <input
+                          id={`${formId}-q${idx}`}
+                          type="number"
+                          step="any"
+                          min="0.001"
+                          inputMode="decimal"
+                          value={line.qty}
+                          onChange={(e) => updateLine(idx, { qty: e.target.value })}
+                          className={`${miniControl} tabular pr-11`}
+                        />
+                        <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-[12px] text-ink-2">{uom}</span>
+                      </div>
+                    </div>
                   </div>
-
-                  <div className="w-24">
-                    <input
-                      type="number"
-                      step="any"
-                      min="0.001"
-                      value={line.qty}
-                      onChange={(e) => updateLine(idx, 'qty', parseFloat(e.target.value) || 0)}
-                      placeholder="Qty"
-                      className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-xs focus:border-indigo-500 focus:outline-none bg-white"
-                      required
-                    />
-                  </div>
-
-                  <div className="w-12 text-xs text-slate-500 font-medium truncate">
-                    {selectedProd?.uom ?? 'unit'}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => removeLine(idx)}
-                    disabled={lines.length === 1}
-                    className="text-slate-400 hover:text-rose-600 disabled:opacity-30 p-1"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                </LineCard>
               );
             })}
           </div>
         </div>
 
-        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-slate-100">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-          >
-            {loading ? 'Creating...' : 'Create Receipt'}
-          </button>
-        </div>
+        {error && <Notice tone="danger">{error}</Notice>}
       </form>
     </Modal>
   );
+}
+
+export function CreateReceiptModal(props: Props) {
+  return <PartnerDocModal kind="receipt" {...props} />;
+}
+
+export function CreateDeliveryModal(props: Props) {
+  return <PartnerDocModal kind="delivery" {...props} />;
 }

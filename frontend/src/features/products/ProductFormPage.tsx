@@ -1,282 +1,173 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { FormField, SelectField, Table, type Column } from '@/components/ui';
-import { formatQty } from '@/features/stock/format';
-import { useLocations } from '@/features/stock/hooks';
-import type { LocationStock } from '@/features/stock/types';
-import {
-  useArchiveProduct,
-  useCategories,
-  useCreateProduct,
-  useProduct,
-  useRemoveReorderRule,
-  useSetReorderRule,
-  useUpdateProduct,
-} from './hooks';
-import {
-  productSchema,
-  reorderRuleSchema,
-  toProductInput,
-  type ProductFormValues,
-  type ReorderRuleValues,
-} from './schemas';
-import { SKU_TAKEN, UOMS, type ProductDetail, type ReorderRule, type Uom } from './types';
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom';
+import { Archive, ArrowLeft, Pencil } from 'lucide-react';
+import { Badge, Button, Card, DetailRow, ErrorState, Metric, Modal, Notice, Skeleton, usePageMeta, useToast } from '@/components/ui';
+import { formatMoney, formatQty } from '@/features/stock/format';
+import { useStockBreakdown } from '@/features/stock/hooks';
+import { formatDate } from '@/lib/format';
+import { useArchiveProduct, useProduct } from './hooks';
+import { ProductSheet } from './ProductForm';
+import { LocationsCard, OpenDocsCard, ProductMovesCard, ReorderRuleCard } from './ProductPanels';
+import type { ProductDetail } from './types';
 
-const primary =
-  'rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50';
-const secondary =
-  'rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50';
-const card = 'rounded-xl border border-slate-200 bg-white p-6';
-
+/** Product detail: identity, live stock position, reordering, locations and history. */
 export function ProductFormPage() {
   const { id } = useParams();
   const product = useProduct(id);
-  // The category <select> is uncontrolled: react-hook-form sets its value once, on
-  // mount, so its options must already exist or it falls back to "No category".
-  const categories = useCategories();
-
-  if ((id && product.isLoading) || categories.isLoading)
-    return <p className="text-slate-400">Loading…</p>;
-  if (id && product.error)
-    return <p className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{product.error.message}</p>;
-
   const detail = product.data;
+  usePageMeta(detail?.name ?? 'Product', detail ? `${detail.sku}${detail.category ? ` · ${detail.category.name}` : ''}` : 'Product details');
+
+  if (!id) return <Navigate to="/products?new=1" replace />;
+  if (product.isLoading) return <DetailSkeleton />;
+  if (product.error || !detail) {
+    return (
+      <Card>
+        <ErrorState title="Couldn't open this product" message={product.error?.message} onRetry={() => product.refetch()} />
+      </Card>
+    );
+  }
+  return <ProductDetailView key={detail.id} detail={detail} />;
+}
+
+function ProductDetailView({ detail }: { detail: ProductDetail }) {
+  const navigate = useNavigate();
+  const toast = useToast();
+  const breakdown = useStockBreakdown(detail.id);
+  const archive = useArchiveProduct();
+  const [editing, setEditing] = useState(false);
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
+  const b = breakdown.data;
+  const qty = (n: number | undefined) => (n === undefined ? '—' : `${formatQty(n)} ${detail.uom}`);
+  const onHand = b?.onHand ?? detail.locations.reduce((s, l) => s + l.qty, 0);
+
+  const onArchive = async () => {
+    setArchiveError(null);
+    try {
+      await archive.mutateAsync(detail.id);
+      toast.success('Product archived', detail.name);
+      navigate('/products', { replace: true });
+    } catch (e) {
+      setArchiveError((e as Error).message);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Link to="/products" className="text-sm text-slate-500 hover:underline">
-          Products
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link to="/products" className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-2 hover:text-ink">
+          <ArrowLeft className="h-4 w-4" aria-hidden /> All products
         </Link>
-        <span className="text-slate-300">/</span>
-        <h1 className="text-2xl font-semibold text-slate-800">{detail ? detail.name : 'New product'}</h1>
-        {detail && !detail.isActive && (
-          <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-600">Archived</span>
-        )}
-      </div>
-      {detail && !detail.isActive && (
-        <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-          This product is archived: it is hidden from stock lists and pickers. Its stock history is kept.
-        </p>
-      )}
-      <ProductForm key={detail?.id ?? 'new'} product={detail} />
-      {detail && (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <ReorderRuleCard productId={detail.id} rule={detail.reorderRule} />
-          <LocationsCard locations={detail.locations} uom={detail.uom} />
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" icon={<Pencil className="h-4 w-4" />} onClick={() => setEditing(true)}>
+            Edit details
+          </Button>
+          {detail.isActive && (
+            <Button variant="outline" icon={<Archive className="h-4 w-4" />} onClick={() => setConfirmArchive(true)}>
+              Archive product
+            </Button>
+          )}
         </div>
+      </div>
+
+      {!detail.isActive && (
+        <Notice tone="info">This product is archived: it is hidden from stock lists and pickers. Its stock history is kept.</Notice>
       )}
+      {archiveError && <Notice tone="danger">{archiveError}</Notice>}
+
+      <Card tone="dove" className="flex flex-wrap items-center gap-6">
+        <span className="grid h-16 w-16 shrink-0 place-items-center rounded-[18px] bg-raspberry text-[20px] font-bold uppercase text-ondark" aria-hidden>
+          {detail.name.slice(0, 2)}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="truncate text-[24px] font-bold leading-8 tracking-tight text-ink">{detail.name}</h2>
+            {!detail.isActive && <Badge tone="neutral">Archived</Badge>}
+          </div>
+          <p className="mt-1 text-[13px] text-ink-2">
+            <span className="font-mono">{detail.sku}</span> · {detail.category?.name ?? 'No category'} · per {detail.uom}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-[12px] font-medium text-ink-2">Stock value</p>
+          <p className="tabular text-[24px] font-bold leading-8 tracking-tight text-ink">{formatMoney(onHand * detail.unitCost)}</p>
+        </div>
+      </Card>
+
+      <Card>
+        <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 xl:grid-cols-5">
+          <Metric label="On hand" value={qty(b?.onHand ?? onHand)} />
+          <Metric label="Reserved" value={qty(b?.reserved)} hint="Open deliveries" />
+          <Metric label="Free to use" value={qty(b?.freeToUse)} tone={b && b.freeToUse < 0 ? 'danger' : 'default'} />
+          <Metric label="Incoming" value={qty(b?.incoming)} hint="Open receipts" tone={b && b.incoming > 0 ? 'success' : 'default'} />
+          <Metric label="Forecast" value={qty(b?.forecast)} hint="On hand + incoming − reserved" />
+        </div>
+        {breakdown.isError && <p className="mt-4 text-[12.5px] text-ink-2">Live reserved and incoming figures are unavailable right now.</p>}
+      </Card>
+
+      <div className="grid gap-6 xl:grid-cols-12">
+        <div className="space-y-6 xl:col-span-8">
+          <LocationsCard locations={detail.locations} uom={detail.uom} />
+          <ProductMovesCard productId={detail.id} uom={detail.uom} />
+        </div>
+        <div className="space-y-6 xl:col-span-4">
+          <Card>
+            <h2 className="mb-2 text-title text-ink">Details</h2>
+            <dl className="divide-y divide-sienna/[0.06]">
+              <DetailRow label="SKU">
+                <span className="font-mono">{detail.sku}</span>
+              </DetailRow>
+              <DetailRow label="Category">{detail.category?.name ?? '—'}</DetailRow>
+              <DetailRow label="Unit of measure">{detail.uom}</DetailRow>
+              <DetailRow label="Per unit cost">{formatMoney(detail.unitCost)}</DetailRow>
+              <DetailRow label="Added">{formatDate(detail.createdAt)}</DetailRow>
+              <DetailRow label="Last updated">{formatDate(detail.updatedAt)}</DetailRow>
+            </dl>
+          </Card>
+          <ReorderRuleCard productId={detail.id} rule={detail.reorderRule} onHand={b?.onHand} uom={detail.uom} />
+          <OpenDocsCard reservedBy={b?.reservedBy} incomingFrom={b?.incomingFrom} uom={detail.uom} loading={breakdown.isLoading} error={breakdown.error?.message} />
+        </div>
+      </div>
+
+      <ProductSheet open={editing} onClose={() => setEditing(false)} product={detail} onSaved={() => {
+        setEditing(false);
+        toast.success('Product updated');
+      }} />
+
+      <Modal
+        open={confirmArchive}
+        onClose={() => setConfirmArchive(false)}
+        title="Archive this product?"
+        description="It will be hidden from stock lists and pickers. Its stock history is kept."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setConfirmArchive(false)}>
+              Keep
+            </Button>
+            <Button variant="danger" loading={archive.isPending} onClick={onArchive}>
+              Archive
+            </Button>
+          </>
+        }
+      >
+        <p className="text-[13.5px] text-ink-2">
+          <span className="font-semibold text-ink">{detail.name}</span> currently has {formatQty(onHand)} {detail.uom} on hand.
+        </p>
+      </Modal>
     </div>
   );
 }
 
-function ProductForm({ product }: { product?: ProductDetail }) {
-  const navigate = useNavigate();
-  const categories = useCategories();
-  const locations = useLocations();
-  const create = useCreateProduct();
-  const update = useUpdateProduct(product?.id ?? '');
-  const archive = useArchiveProduct();
-  const [formError, setFormError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
-  const [confirmArchive, setConfirmArchive] = useState(false);
-
-  const {
-    register,
-    handleSubmit,
-    setError,
-    formState: { errors, isSubmitting },
-  } = useForm<ProductFormValues>({
-    resolver: zodResolver(productSchema),
-    defaultValues: {
-      name: product?.name ?? '',
-      sku: product?.sku ?? '',
-      categoryId: product?.category?.id ?? '',
-      uom: (product?.uom as Uom) ?? 'unit',
-      unitCost: product?.unitCost ?? 0,
-      initialQty: undefined,
-      initialLocationId: '',
-    },
-  });
-
-  const onSubmit = handleSubmit(async (values) => {
-    setFormError(null);
-    setSaved(false);
-    try {
-      if (product) {
-        await update.mutateAsync(toProductInput(values, false));
-        setSaved(true);
-      } else {
-        const created = await create.mutateAsync(toProductInput(values, true));
-        navigate(`/products/${created.id}`, { replace: true });
-      }
-    } catch (e) {
-      const message = (e as Error).message;
-      if (message === SKU_TAKEN) setError('sku', { message });
-      else setFormError(message);
-    }
-  });
-
-  const onArchive = async () => {
-    if (!product) return;
-    try {
-      await archive.mutateAsync(product.id);
-      navigate('/products', { replace: true });
-    } catch (e) {
-      setFormError((e as Error).message);
-    }
-  };
-
+function DetailSkeleton() {
   return (
-    <form onSubmit={onSubmit} className={`${card} space-y-4`} noValidate>
-      <div className="grid gap-4 md:grid-cols-2">
-        <FormField label="Name" {...register('name')} error={errors.name?.message} />
-        <FormField label="SKU / Code" {...register('sku')} error={errors.sku?.message} />
-        <SelectField
-          label="Category"
-          placeholder="No category"
-          options={(categories.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
-          {...register('categoryId')}
-          error={errors.categoryId?.message}
-        />
-        <SelectField
-          label="Unit of measure"
-          options={UOMS.map((u) => ({ value: u, label: u }))}
-          {...register('uom')}
-          error={errors.uom?.message}
-        />
-        <FormField
-          label="Per unit cost (₹)"
-          type="number"
-          step="0.01"
-          min="0"
-          {...register('unitCost')}
-          error={errors.unitCost?.message}
-        />
+    <div className="space-y-6" aria-busy>
+      <Skeleton className="h-6 w-32" />
+      <Skeleton className="h-28 w-full rounded-card" />
+      <Skeleton className="h-24 w-full rounded-card" />
+      <div className="grid gap-6 xl:grid-cols-12">
+        <Skeleton className="h-64 rounded-card xl:col-span-8" />
+        <Skeleton className="h-64 rounded-card xl:col-span-4" />
       </div>
-
-      {!product && (
-        <fieldset className="grid gap-4 rounded-lg bg-slate-50 p-4 md:grid-cols-2">
-          <legend className="px-1 text-sm font-medium text-slate-600">Initial stock (optional)</legend>
-          <FormField
-            label="Quantity on hand"
-            type="number"
-            step="0.001"
-            min="0"
-            {...register('initialQty')}
-            error={errors.initialQty?.message}
-          />
-          <SelectField
-            label="Location"
-            placeholder="Main stock location (default)"
-            options={(locations.data ?? []).map((l) => ({
-              value: l.id,
-              label: `${l.warehouseName} / ${l.name}`,
-            }))}
-            {...register('initialLocationId')}
-          />
-        </fieldset>
-      )}
-
-      {formError && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{formError}</p>}
-      {saved && <p className="text-sm text-emerald-700">Saved.</p>}
-
-      <div className="flex items-center justify-between">
-        <button type="submit" className={primary} disabled={isSubmitting}>
-          {isSubmitting ? 'Saving…' : product ? 'Save changes' : 'Create product'}
-        </button>
-        {product?.isActive &&
-          (confirmArchive ? (
-            <span className="flex items-center gap-2 text-sm">
-              <span className="text-slate-600">Hide this product from lists? Its history is kept.</span>
-              <button type="button" className="rounded-lg bg-red-600 px-3 py-2 font-medium text-white" onClick={onArchive}>
-                Archive
-              </button>
-              <button type="button" className={secondary} onClick={() => setConfirmArchive(false)}>
-                Keep
-              </button>
-            </span>
-          ) : (
-            <button type="button" className={secondary} onClick={() => setConfirmArchive(true)}>
-              Archive product
-            </button>
-          ))}
-      </div>
-    </form>
-  );
-}
-
-function ReorderRuleCard({ productId, rule }: { productId: string; rule: ReorderRule | null }) {
-  const setRule = useSetReorderRule(productId);
-  const removeRule = useRemoveReorderRule(productId);
-  const [message, setMessage] = useState<string | null>(null);
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors, isSubmitting },
-  } = useForm<ReorderRuleValues>({
-    resolver: zodResolver(reorderRuleSchema),
-    defaultValues: { minQty: rule?.minQty ?? 0, maxQty: rule?.maxQty ?? undefined },
-  });
-
-  const onSubmit = handleSubmit(async (v) => {
-    setMessage(null);
-    try {
-      await setRule.mutateAsync({ minQty: v.minQty, maxQty: v.maxQty ?? null });
-      setMessage('Reorder rule saved.');
-    } catch (e) {
-      setMessage((e as Error).message);
-    }
-  });
-
-  const onRemove = async () => {
-    setMessage(null);
-    try {
-      await removeRule.mutateAsync();
-      reset({ minQty: 0, maxQty: undefined });
-      setMessage('Reorder rule removed.');
-    } catch (e) {
-      setMessage((e as Error).message);
-    }
-  };
-
-  return (
-    <form onSubmit={onSubmit} className={`${card} space-y-4`} noValidate>
-      <div>
-        <h2 className="text-lg font-semibold text-slate-800">Reorder rule</h2>
-        <p className="text-sm text-slate-500">Flag this product as low stock at or below the minimum.</p>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <FormField label="Minimum" type="number" step="0.001" min="0" {...register('minQty')} error={errors.minQty?.message} />
-        <FormField label="Maximum (optional)" type="number" step="0.001" min="0" {...register('maxQty')} error={errors.maxQty?.message} />
-      </div>
-      {message && <p className="text-sm text-slate-600">{message}</p>}
-      <div className="flex gap-2">
-        <button type="submit" className={primary} disabled={isSubmitting}>
-          Save rule
-        </button>
-        {rule && (
-          <button type="button" className={secondary} onClick={onRemove}>
-            Remove rule
-          </button>
-        )}
-      </div>
-    </form>
-  );
-}
-
-function LocationsCard({ locations, uom }: { locations: LocationStock[]; uom: string }) {
-  const columns: Column<LocationStock>[] = [
-    { key: 'warehouseName', header: 'Warehouse' },
-    { key: 'locationName', header: 'Location' },
-    { key: 'qty', header: 'On hand', render: (l) => `${formatQty(l.qty)} ${uom}` },
-  ];
-  return (
-    <div className={`${card} space-y-4`}>
-      <h2 className="text-lg font-semibold text-slate-800">Stock per location</h2>
-      <Table columns={columns} rows={locations} empty="No stock recorded yet" />
     </div>
   );
 }

@@ -41,7 +41,7 @@ describe('Dashboard KPIs', () => {
     expect(tile('Pending Receipts')).toBe('4');
     expect(tile('Pending Deliveries')).toBe('6');
     expect(tile('Internal Transfers')).toBe('1');
-    expect(tile('Total in Stock')).toBe('77');
+    expect(tile('Products in Stock')).toBe('77');
   });
 
   it('never shows made-up numbers when the API fails', async () => {

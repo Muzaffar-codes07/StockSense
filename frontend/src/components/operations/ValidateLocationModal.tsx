@@ -1,51 +1,44 @@
-import { useState, useEffect, type FormEvent } from 'react';
-import { Modal } from '../ui/Modal';
-import { getLocations, LocationItem } from '../../lib/operations';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { CheckCircle2 } from 'lucide-react';
+import { Button, Modal, Notice } from '@/components/ui';
+import { getLocations, type LocationItem } from '@/lib/operations';
+import { FieldLabel, locationOptions, NativeSelect } from './parts';
 
 interface Props {
   open: boolean;
   title: string;
   locationLabel: string;
   initialLocationId?: string;
+  /** What validating will do, e.g. "Adds 3 lines to stock". */
+  summary?: ReactNode;
   onClose: () => void;
   onConfirm: (locationId: string) => Promise<void>;
 }
 
-export function ValidateLocationModal({
-  open,
-  title,
-  locationLabel,
-  initialLocationId,
-  onClose,
-  onConfirm,
-}: Props) {
+const FORM_ID = 'validate-location-form';
+
+export function ValidateLocationModal({ open, title, locationLabel, initialLocationId, summary, onClose, onConfirm }: Props) {
   const [locations, setLocations] = useState<LocationItem[]>([]);
   const [locationId, setLocationId] = useState(initialLocationId ?? '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (open) {
-      setError(null);
-      setLocationId(initialLocationId ?? '');
-      getLocations()
-        .then((locs) => {
-          setLocations(locs);
-          if (!initialLocationId && locs.length > 0) {
-            setLocationId(locs[0].id);
-          }
-        })
-        .catch(() => {});
-    }
+    if (!open) return;
+    setError(null);
+    setLocationId(initialLocationId ?? '');
+    getLocations()
+      .then((locs) => {
+        const list = Array.isArray(locs) ? locs : [];
+        setLocations(list);
+        if (!initialLocationId && list.length > 0) setLocationId(list[0].id);
+      })
+      .catch(() => setError("Couldn't load locations. Try again in a moment."));
   }, [open, initialLocationId]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!locationId) {
-      setError('Please select a location');
-      return;
-    }
-
+    if (!locationId) return setError('Choose a location.');
     setLoading(true);
     setError(null);
     try {
@@ -59,54 +52,29 @@ export function ValidateLocationModal({
   };
 
   return (
-    <Modal open={open} title={title} onClose={onClose}>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {error && (
-          <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600 border border-red-200">
-            {error}
-          </div>
-        )}
-
-        <p className="text-sm text-slate-600">
-          Validating this document will automatically post stock movements to the immutable Stock Ledger.
-        </p>
-
-        <div>
-          <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-            {locationLabel}
-          </label>
-          <select
-            value={locationId}
-            onChange={(e) => setLocationId(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none bg-white"
-            required
-          >
-            <option value="">Select Location</option>
-            {locations.map((loc) => (
-              <option key={loc.id} value={loc.id}>
-                {loc.warehouse?.name ? `${loc.warehouse.name} - ` : ''}
-                {loc.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-slate-100">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
+    <Modal
+      open={open}
+      title={title}
+      description="Validating posts the stock movements to the ledger. This can't be undone."
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
-          >
-            {loading ? 'Validating...' : 'Confirm & Validate'}
-          </button>
+          </Button>
+          <Button type="submit" form={FORM_ID} loading={loading} icon={<CheckCircle2 className="h-4 w-4" />}>
+            Validate
+          </Button>
+        </>
+      }
+    >
+      <form id={FORM_ID} onSubmit={handleSubmit} className="space-y-4" noValidate>
+        {summary && <div className="rounded-card-sm bg-canvas p-4 text-[13.5px] text-ink-2">{summary}</div>}
+        <div>
+          <FieldLabel htmlFor={`${FORM_ID}-loc`}>{locationLabel}</FieldLabel>
+          <NativeSelect id={`${FORM_ID}-loc`} value={locationId} onChange={setLocationId} placeholder="Select location" options={locationOptions(locations)} />
         </div>
+        {error && <Notice tone="danger">{error}</Notice>}
       </form>
     </Modal>
   );

@@ -2,15 +2,142 @@
 @tailwind components;
 @tailwind utilities;
 
-html,
-body,
-#root {
-  height: 100%;
+/* ---------------------------------------------------------------------------
+   StockSense design tokens — the single source of truth for colour.
+   Values are RGB channels so Tailwind can apply alpha (see tailwind.config.js).
+   --------------------------------------------------------------------------- */
+:root {
+  /* Brand */
+  --ss-raspberry: 22 15 12; /* #160F0C Black Raspberry */
+  --ss-sienna: 57 18 20; /* #391214 Dark Sienna */
+  --ss-sienna-hover: 74 25 27; /* #4A191B */
+  --ss-sienna-press: 45 13 15; /* #2D0D0F */
+  --ss-chocolate: 82 66 61; /* #52423D Spiced Hot Chocolate */
+  --ss-moonrock: 136 125 119; /* #887D77 Moon Rock */
+  --ss-dove: 192 186 179; /* #C0BAB3 Soft Dove */
+
+  /* Environment */
+  --ss-canvas: 244 247 250; /* #F4F7FA */
+  --ss-surface: 255 255 255;
+  --ss-ink: 23 20 18; /* #171412 primary text */
+  --ss-ink-2: 116 110 105; /* #746E69 secondary text */
+  --ss-ink-3: 156 150 145; /* #9C9691 muted / placeholder */
+  --ss-ondark: 247 244 242; /* #F7F4F2 text on the rail */
+
+  /* Semantic — deliberately separate from brand */
+  --ss-success: 79 122 100; /* #4F7A64 */
+  --ss-success-fg: 70 107 88; /* #466B58 */
+  --ss-warning: 181 132 74; /* #B5844A */
+  --ss-warning-fg: 151 108 61; /* #976C3D */
+  --ss-danger: 168 76 76; /* #A84C4C */
+  --ss-danger-fg: 147 67 67; /* #934343 */
+  --ss-info: 94 114 145; /* #5E7291 */
+  --ss-info-fg: 83 101 128; /* #536580 */
+
+  /* Analytical support (charts only, not brand) */
+  --ss-steel: 116 134 154; /* #74869A */
+  --ss-forecast: 112 78 73; /* #704E49 */
+
+  color-scheme: light;
 }
 
-body {
-  margin: 0;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  background: #f8fafc;
-  color: #0f172a;
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    @apply bg-canvas font-sans text-[14px] text-ink antialiased;
+    font-feature-settings: 'ss01', 'cv11';
+    /* Barely-there atmosphere around the application shell. */
+    background-image:
+      radial-gradient(1100px 560px at 88% -12%, rgb(192 186 179 / 0.26), transparent 62%),
+      radial-gradient(900px 520px at -8% 112%, rgb(57 18 20 / 0.05), transparent 60%);
+    background-attachment: fixed;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply tracking-tight;
+  }
+
+  ::selection {
+    background: rgb(57 18 20 / 0.14);
+  }
+
+  /* Keyboard focus is always visible; mouse focus stays quiet. */
+  :focus-visible {
+    outline: 2px solid rgb(var(--ss-sienna) / 0.55);
+    outline-offset: 2px;
+  }
+
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    opacity: 0.35;
+  }
+}
+
+@layer components {
+  /* Light frosted glass — KPI cards, floating controls, modals, sheets. */
+  .glass {
+    background: linear-gradient(145deg, rgb(255 255 255 / 0.8), rgb(192 186 179 / 0.14));
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid rgb(255 255 255 / 0.6);
+    box-shadow: 0 16px 50px rgb(22 15 12 / 0.07);
+  }
+
+  .glass-strong {
+    background: rgb(255 255 255 / 0.97);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid rgb(255 255 255 / 0.7);
+  }
+
+  /* Dark glass — command palette, emphasis popovers. */
+  .glass-dark {
+    background: rgb(22 15 12 / 0.9);
+    -webkit-backdrop-filter: blur(24px);
+    backdrop-filter: blur(24px);
+    border: 1px solid rgb(255 255 255 / 0.08);
+  }
+
+  /* Hairline divider that stays warm without looking brown. */
+  .hairline {
+    border-color: rgb(57 18 20 / 0.07);
+  }
+
+  .scroll-quiet {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(136 125 119 / 0.35) transparent;
+  }
+  .scroll-quiet::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .scroll-quiet::-webkit-scrollbar-thumb {
+    background: rgb(136 125 119 / 0.3);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

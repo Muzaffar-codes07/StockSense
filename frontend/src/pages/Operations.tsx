@@ -1,662 +1,144 @@
-import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  getReceipts,
-  updateReceiptStatus,
-  validateReceipt,
-  cancelReceipt,
-  getDeliveries,
-  updateDeliveryStatus,
-  validateDelivery,
-  cancelDelivery,
-  getTransfers,
-  updateTransferStatus,
-  validateTransfer,
-  cancelTransfer,
-  getAdjustments,
-  validateAdjustment,
-  cancelAdjustment,
-  DocStatus,
-  Receipt,
-  Delivery,
-  Transfer,
-  Adjustment,
-} from '../lib/operations';
-import { Table, Column } from '../components/ui/Table';
-import { FilterBar } from '../components/ui/FilterBar';
-import { DocStatusBadge } from '../components/operations/DocStatusBadge';
-import { CreateReceiptModal } from '../components/operations/CreateReceiptModal';
-import { CreateDeliveryModal } from '../components/operations/CreateDeliveryModal';
-import { CreateTransferModal } from '../components/operations/CreateTransferModal';
-import { CreateAdjustmentModal } from '../components/operations/CreateAdjustmentModal';
-import { ValidateLocationModal } from '../components/operations/ValidateLocationModal';
-import {
-  Plus,
-  ArrowDownLeft,
-  ArrowUpRight,
-  ArrowLeftRight,
-  SlidersHorizontal,
-  CheckCircle2,
-  XCircle,
-  Clock,
-} from 'lucide-react';
+import { useMemo } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowRight, ClipboardList, Plus } from 'lucide-react';
+import { Card, DocStatusBadge, EmptyState, ErrorState, Notice, Section, Skeleton, usePageMeta } from '@/components/ui';
+import { OPERATION_KINDS, OPERATIONS, refOf, type AnyDoc, type OperationKind } from '@/features/operations/config';
+import { linesOf, partnerOf, productsSummary } from '@/features/operations/docs';
+import { useOperationList, useOpsKpis } from '@/features/operations/hooks';
+import { OperationsSubNav } from '@/features/operations/OperationListPage';
+import { timeAgo } from '@/lib/format';
 
-type TabType = 'receipts' | 'deliveries' | 'transfers' | 'adjustments';
-
+/** Operations hub: what's pending per document type, and the latest documents across all four. */
 export function Operations() {
-  const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<TabType>('receipts');
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<DocStatus | ''>('');
+  usePageMeta('Operations', 'Receipts, deliveries, transfers and adjustments in one place.');
+  const kpis = useOpsKpis();
+  const adjDraft = useOperationList('adjustment', { status: 'DRAFT', pageSize: 1 });
+  const adjWaiting = useOperationList('adjustment', { status: 'WAITING', pageSize: 1 });
+  const adjReady = useOperationList('adjustment', { status: 'READY', pageSize: 1 });
+  const adjOpen = [adjDraft, adjWaiting, adjReady].every((q) => q.data) ? [adjDraft, adjWaiting, adjReady].reduce((s, q) => s + (q.data?.total ?? 0), 0) : undefined;
 
-  // Modals state
-  const [openReceiptModal, setOpenReceiptModal] = useState(false);
-  const [openDeliveryModal, setOpenDeliveryModal] = useState(false);
-  const [openTransferModal, setOpenTransferModal] = useState(false);
-  const [openAdjustmentModal, setOpenAdjustmentModal] = useState(false);
-
-  // Validate location modal state
-  const [validateTarget, setValidateTarget] = useState<{
-    id: string;
-    type: 'receipt' | 'delivery';
-  } | null>(null);
-
-  // Query Receipts
-  const { data: receiptsData, isLoading: receiptsLoading } = useQuery({
-    queryKey: ['operations', 'receipts', statusFilter, search],
-    queryFn: () => getReceipts({ status: statusFilter, search: search || undefined }),
-    enabled: activeTab === 'receipts',
-  });
-
-  // Query Deliveries
-  const { data: deliveriesData, isLoading: deliveriesLoading } = useQuery({
-    queryKey: ['operations', 'deliveries', statusFilter, search],
-    queryFn: () => getDeliveries({ status: statusFilter, search: search || undefined }),
-    enabled: activeTab === 'deliveries',
-  });
-
-  // Query Transfers
-  const { data: transfersData, isLoading: transfersLoading } = useQuery({
-    queryKey: ['operations', 'transfers', statusFilter, search],
-    queryFn: () => getTransfers({ status: statusFilter, search: search || undefined }),
-    enabled: activeTab === 'transfers',
-  });
-
-  // Query Adjustments
-  const { data: adjustmentsData, isLoading: adjustmentsLoading } = useQuery({
-    queryKey: ['operations', 'adjustments', statusFilter, search],
-    queryFn: () => getAdjustments({ status: statusFilter, search: search || undefined }),
-    enabled: activeTab === 'adjustments',
-  });
-
-  const refreshCurrent = () => {
-    queryClient.invalidateQueries({ queryKey: ['operations'] });
+  const pending: Record<OperationKind, { count?: number; label: string; loading: boolean }> = {
+    receipt: { count: kpis.data?.pendingReceipts, label: 'waiting to be received', loading: kpis.isLoading },
+    delivery: { count: kpis.data?.pendingDeliveries, label: 'waiting to ship', loading: kpis.isLoading },
+    transfer: { count: kpis.data?.scheduledTransfers, label: 'scheduled', loading: kpis.isLoading },
+    adjustment: { count: adjOpen, label: 'open counts', loading: adjDraft.isLoading },
   };
-
-  // Receipt Actions
-  const handleMarkReceiptReady = async (id: string) => {
-    await updateReceiptStatus(id, 'READY');
-    refreshCurrent();
-  };
-
-  const handleCancelReceipt = async (id: string) => {
-    if (confirm('Are you sure you want to cancel this receipt?')) {
-      await cancelReceipt(id);
-      refreshCurrent();
-    }
-  };
-
-  // Delivery Actions
-  const handleMarkDeliveryReady = async (id: string) => {
-    await updateDeliveryStatus(id, 'READY');
-    refreshCurrent();
-  };
-
-  const handleCancelDelivery = async (id: string) => {
-    if (confirm('Are you sure you want to cancel this delivery?')) {
-      await cancelDelivery(id);
-      refreshCurrent();
-    }
-  };
-
-  // Transfer Actions
-  const handleMarkTransferReady = async (id: string) => {
-    await updateTransferStatus(id, 'READY');
-    refreshCurrent();
-  };
-
-  const handleValidateTransfer = async (id: string) => {
-    await validateTransfer(id);
-    refreshCurrent();
-  };
-
-  const handleCancelTransfer = async (id: string) => {
-    if (confirm('Are you sure you want to cancel this transfer?')) {
-      await cancelTransfer(id);
-      refreshCurrent();
-    }
-  };
-
-  // Adjustment Actions
-  const handleValidateAdjustment = async (id: string) => {
-    await validateAdjustment(id);
-    refreshCurrent();
-  };
-
-  const handleCancelAdjustment = async (id: string) => {
-    if (confirm('Are you sure you want to cancel this adjustment?')) {
-      await cancelAdjustment(id);
-      refreshCurrent();
-    }
-  };
-
-  const handleConfirmValidateLocation = async (locationId: string) => {
-    if (!validateTarget) return;
-    if (validateTarget.type === 'receipt') {
-      await validateReceipt(validateTarget.id, locationId);
-    } else {
-      await validateDelivery(validateTarget.id, locationId);
-    }
-    refreshCurrent();
-  };
-
-  // Columns for Receipts
-  const receiptColumns: Column<Receipt>[] = [
-    {
-      key: 'id',
-      header: 'Reference',
-      render: (r) => (
-        <div>
-          <span className="font-mono text-xs font-semibold text-slate-800">
-            REC-{r.id.slice(0, 8).toUpperCase()}
-          </span>
-          <div className="text-[11px] text-slate-400">
-            {new Date(r.createdAt).toLocaleDateString()}
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'partner',
-      header: 'Vendor / Supplier',
-      render: (r) => (
-        <span className="font-medium text-slate-700">
-          {r.partner?.name ?? '—'}
-        </span>
-      ),
-    },
-    {
-      key: 'lines',
-      header: 'Products',
-      render: (r) => (
-        <div className="space-y-0.5">
-          {r.lines.map((l) => (
-            <div key={l.id} className="text-xs text-slate-600">
-              <span className="font-semibold text-slate-800">{Number(l.qty)}</span> {l.product?.uom ?? 'units'} × {l.product?.name ?? 'Product'}
-            </div>
-          ))}
-        </div>
-      ),
-    },
-    {
-      key: 'status',
-      header: 'Status',
-      render: (r) => <DocStatusBadge status={r.status} />,
-    },
-    {
-      key: 'actions',
-      header: 'Actions',
-      render: (r) => {
-        if (r.status === 'DONE' || r.status === 'CANCELED') {
-          return <span className="text-xs text-slate-400">Completed</span>;
-        }
-        return (
-          <div className="flex items-center gap-1.5">
-            {r.status === 'DRAFT' && (
-              <button
-                onClick={() => handleMarkReceiptReady(r.id)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md"
-                title="Mark as Ready"
-              >
-                <Clock className="w-3.5 h-3.5" /> Ready
-              </button>
-            )}
-            <button
-              onClick={() => setValidateTarget({ id: r.id, type: 'receipt' })}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-md"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" /> Validate
-            </button>
-            <button
-              onClick={() => handleCancelReceipt(r.id)}
-              className="p-1 text-slate-400 hover:text-rose-600 rounded-md"
-              title="Cancel Receipt"
-            >
-              <XCircle className="w-4 h-4" />
-            </button>
-          </div>
-        );
-      },
-    },
-  ];
-
-  // Columns for Deliveries
-  const deliveryColumns: Column<Delivery>[] = [
-    {
-      key: 'id',
-      header: 'Reference',
-      render: (d) => (
-        <div>
-          <span className="font-mono text-xs font-semibold text-slate-800">
-            DEL-{d.id.slice(0, 8).toUpperCase()}
-          </span>
-          <div className="text-[11px] text-slate-400">
-            {new Date(d.createdAt).toLocaleDateString()}
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'partner',
-      header: 'Customer',
-      render: (d) => (
-        <span className="font-medium text-slate-700">
-          {d.partner?.name ?? '—'}
-        </span>
-      ),
-    },
-    {
-      key: 'lines',
-      header: 'Items to Pick/Pack',
-      render: (d) => (
-        <div className="space-y-0.5">
-          {d.lines.map((l) => (
-            <div key={l.id} className="text-xs text-slate-600">
-              <span className="font-semibold text-slate-800">{Number(l.qty)}</span> {l.product?.uom ?? 'units'} × {l.product?.name ?? 'Product'}
-            </div>
-          ))}
-        </div>
-      ),
-    },
-    {
-      key: 'status',
-      header: 'Status',
-      render: (d) => <DocStatusBadge status={d.status} />,
-    },
-    {
-      key: 'actions',
-      header: 'Actions',
-      render: (d) => {
-        if (d.status === 'DONE' || d.status === 'CANCELED') {
-          return <span className="text-xs text-slate-400">Completed</span>;
-        }
-        return (
-          <div className="flex items-center gap-1.5">
-            {d.status === 'DRAFT' && (
-              <button
-                onClick={() => handleMarkDeliveryReady(d.id)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md"
-                title="Mark Pick & Pack Ready"
-              >
-                <Clock className="w-3.5 h-3.5" /> Ready
-              </button>
-            )}
-            <button
-              onClick={() => setValidateTarget({ id: d.id, type: 'delivery' })}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-md"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" /> Validate
-            </button>
-            <button
-              onClick={() => handleCancelDelivery(d.id)}
-              className="p-1 text-slate-400 hover:text-rose-600 rounded-md"
-              title="Cancel Delivery"
-            >
-              <XCircle className="w-4 h-4" />
-            </button>
-          </div>
-        );
-      },
-    },
-  ];
-
-  // Columns for Transfers
-  const transferColumns: Column<Transfer>[] = [
-    {
-      key: 'id',
-      header: 'Reference',
-      render: (t) => (
-        <div>
-          <span className="font-mono text-xs font-semibold text-slate-800">
-            TRF-{t.id.slice(0, 8).toUpperCase()}
-          </span>
-          <div className="text-[11px] text-slate-400">
-            {new Date(t.createdAt).toLocaleDateString()}
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'lines',
-      header: 'Transferred Items & Path',
-      render: (t) => (
-        <div className="space-y-1">
-          {t.lines.map((l) => (
-            <div key={l.id} className="text-xs text-slate-600">
-              <span className="font-semibold text-slate-800">{Number(l.qty)}</span> {l.product?.uom ?? 'units'} × {l.product?.name ?? 'Product'}:
-              <span className="ml-1 text-slate-500 font-mono text-[11px]">
-                {l.fromLocation?.name} → {l.toLocation?.name}
-              </span>
-            </div>
-          ))}
-        </div>
-      ),
-    },
-    {
-      key: 'status',
-      header: 'Status',
-      render: (t) => <DocStatusBadge status={t.status} />,
-    },
-    {
-      key: 'actions',
-      header: 'Actions',
-      render: (t) => {
-        if (t.status === 'DONE' || t.status === 'CANCELED') {
-          return <span className="text-xs text-slate-400">Completed</span>;
-        }
-        return (
-          <div className="flex items-center gap-1.5">
-            {t.status === 'DRAFT' && (
-              <button
-                onClick={() => handleMarkTransferReady(t.id)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md"
-              >
-                <Clock className="w-3.5 h-3.5" /> Ready
-              </button>
-            )}
-            <button
-              onClick={() => handleValidateTransfer(t.id)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-md"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" /> Validate
-            </button>
-            <button
-              onClick={() => handleCancelTransfer(t.id)}
-              className="p-1 text-slate-400 hover:text-rose-600 rounded-md"
-              title="Cancel Transfer"
-            >
-              <XCircle className="w-4 h-4" />
-            </button>
-          </div>
-        );
-      },
-    },
-  ];
-
-  // Columns for Adjustments
-  const adjustmentColumns: Column<Adjustment>[] = [
-    {
-      key: 'id',
-      header: 'Reference',
-      render: (a) => (
-        <div>
-          <span className="font-mono text-xs font-semibold text-slate-800">
-            ADJ-{a.id.slice(0, 8).toUpperCase()}
-          </span>
-          <div className="text-[11px] text-slate-400">
-            {new Date(a.createdAt).toLocaleDateString()}
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'location',
-      header: 'Location',
-      render: (a) => (
-        <span className="font-medium text-slate-700">
-          {a.location?.name ?? '—'}
-        </span>
-      ),
-    },
-    {
-      key: 'lines',
-      header: 'Products & Discrepancies',
-      render: (a) => (
-        <div className="space-y-1">
-          {a.lines.map((l) => {
-            const diff = Number(l.diff);
-            return (
-              <div key={l.id} className="text-xs text-slate-600 flex items-center gap-2">
-                <span>{l.product?.name ?? 'Product'}</span>
-                <span className="text-[11px] text-slate-400">
-                  (Rec: {Number(l.recordedQty)} | Count: {Number(l.countedQty)})
-                </span>
-                <span
-                  className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
-                    diff > 0
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : diff < 0
-                      ? 'bg-rose-100 text-rose-800'
-                      : 'bg-slate-100 text-slate-600'
-                  }`}
-                >
-                  {diff > 0 ? `+${diff}` : `${diff}`}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      ),
-    },
-    {
-      key: 'status',
-      header: 'Status',
-      render: (a) => <DocStatusBadge status={a.status} />,
-    },
-    {
-      key: 'actions',
-      header: 'Actions',
-      render: (a) => {
-        if (a.status === 'DONE' || a.status === 'CANCELED') {
-          return <span className="text-xs text-slate-400">Completed</span>;
-        }
-        return (
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => handleValidateAdjustment(a.id)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-md"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" /> Validate Diff
-            </button>
-            <button
-              onClick={() => handleCancelAdjustment(a.id)}
-              className="p-1 text-slate-400 hover:text-rose-600 rounded-md"
-              title="Cancel Adjustment"
-            >
-              <XCircle className="w-4 h-4" />
-            </button>
-          </div>
-        );
-      },
-    },
-  ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Warehouse Operations</h1>
-          <p className="text-sm text-slate-500">
-            Manage receipts, customer deliveries, internal transfers, and inventory reconciliations.
-          </p>
-        </div>
+    <div>
+      <OperationsSubNav />
+      {kpis.isError && <Notice tone="warning" className="mb-6">Pending counts are unavailable right now.</Notice>}
 
-        <div className="flex items-center gap-2">
-          {activeTab === 'receipts' && (
-            <button
-              onClick={() => setOpenReceiptModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-700 shadow-sm"
-            >
-              <Plus className="w-4 h-4" /> New Receipt
-            </button>
-          )}
-          {activeTab === 'deliveries' && (
-            <button
-              onClick={() => setOpenDeliveryModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-700 shadow-sm"
-            >
-              <Plus className="w-4 h-4" /> New Delivery
-            </button>
-          )}
-          {activeTab === 'transfers' && (
-            <button
-              onClick={() => setOpenTransferModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-700 shadow-sm"
-            >
-              <Plus className="w-4 h-4" /> New Transfer
-            </button>
-          )}
-          {activeTab === 'adjustments' && (
-            <button
-              onClick={() => setOpenAdjustmentModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-700 shadow-sm"
-            >
-              <Plus className="w-4 h-4" /> New Adjustment
-            </button>
-          )}
-        </div>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {OPERATION_KINDS.map((k, i) => {
+          const cfg = OPERATIONS[k];
+          const p = pending[k];
+          return (
+            <Card key={k} tone={(['mist', 'blush', 'dove', 'surface'] as const)[i]} className="flex min-h-[208px] flex-col">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  {p.loading ? (
+                    <Skeleton className="h-9 w-12" />
+                  ) : (
+                    <p className="tabular text-kpi font-bold tracking-[-0.035em] text-ink">{p.count ?? '—'}</p>
+                  )}
+                  <p className="mt-1 text-[13px] text-ink-2">{p.label}</p>
+                </div>
+                <Link
+                  to={`${cfg.path}?new=1`}
+                  className="inline-flex h-8 items-center gap-1 rounded-full bg-white/80 px-3 text-[12.5px] font-medium text-sienna ring-1 ring-inset ring-sienna/10 transition-colors hover:bg-white"
+                  aria-label={`New ${cfg.label.toLowerCase()}`}
+                >
+                  <Plus className="h-3.5 w-3.5" aria-hidden /> New
+                </Link>
+              </div>
+              <div className="mt-auto flex items-end justify-between gap-3 pt-6">
+                <div className="flex items-center gap-3">
+                  <span className="grid h-11 w-11 place-items-center rounded-[14px] bg-white text-sienna shadow-card" aria-hidden>
+                    <cfg.icon className="h-5 w-5" />
+                  </span>
+                  <span>
+                    <span className="block text-[15px] font-semibold text-ink">{cfg.plural}</span>
+                    <span className="block text-[12px] text-ink-2">{cfg.purpose}</span>
+                  </span>
+                </div>
+                <Link to={cfg.path} className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-2 transition-colors hover:bg-white hover:text-ink" aria-label={`Open ${cfg.plural}`}>
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+            </Card>
+          );
+        })}
       </div>
 
-      {/* Tabs */}
-      <div className="flex border-b border-slate-200">
-        <button
-          onClick={() => setActiveTab('receipts')}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'receipts'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-          }`}
-        >
-          <ArrowDownLeft className="w-4 h-4" /> Receipts (Incoming)
-        </button>
-        <button
-          onClick={() => setActiveTab('deliveries')}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'deliveries'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-          }`}
-        >
-          <ArrowUpRight className="w-4 h-4" /> Delivery Orders (Outgoing)
-        </button>
-        <button
-          onClick={() => setActiveTab('transfers')}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'transfers'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-          }`}
-        >
-          <ArrowLeftRight className="w-4 h-4" /> Internal Transfers
-        </button>
-        <button
-          onClick={() => setActiveTab('adjustments')}
-          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'adjustments'
-              ? 'border-indigo-600 text-indigo-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-          }`}
-        >
-          <SlidersHorizontal className="w-4 h-4" /> Inventory Adjustments
-        </button>
-      </div>
-
-      {/* Filter Bar */}
-      <FilterBar search={search} onSearch={setSearch}>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as DocStatus | '')}
-          className="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:border-indigo-500 focus:outline-none"
-        >
-          <option value="">All Statuses</option>
-          <option value="DRAFT">Draft</option>
-          <option value="WAITING">Waiting</option>
-          <option value="READY">Ready</option>
-          <option value="DONE">Done</option>
-          <option value="CANCELED">Canceled</option>
-        </select>
-      </FilterBar>
-
-      {/* Tables based on active tab */}
-      {activeTab === 'receipts' && (
-        <Table
-          columns={receiptColumns}
-          rows={receiptsData?.data ?? []}
-          empty={receiptsLoading ? 'Loading receipts...' : 'No receipts found'}
-        />
-      )}
-
-      {activeTab === 'deliveries' && (
-        <Table
-          columns={deliveryColumns}
-          rows={deliveriesData?.data ?? []}
-          empty={deliveriesLoading ? 'Loading deliveries...' : 'No deliveries found'}
-        />
-      )}
-
-      {activeTab === 'transfers' && (
-        <Table
-          columns={transferColumns}
-          rows={transfersData?.data ?? []}
-          empty={transfersLoading ? 'Loading transfers...' : 'No transfers found'}
-        />
-      )}
-
-      {activeTab === 'adjustments' && (
-        <Table
-          columns={adjustmentColumns}
-          rows={adjustmentsData?.data ?? []}
-          empty={adjustmentsLoading ? 'Loading adjustments...' : 'No adjustments found'}
-        />
-      )}
-
-      {/* Modals */}
-      <CreateReceiptModal
-        open={openReceiptModal}
-        onClose={() => setOpenReceiptModal(false)}
-        onSuccess={refreshCurrent}
-      />
-      <CreateDeliveryModal
-        open={openDeliveryModal}
-        onClose={() => setOpenDeliveryModal(false)}
-        onSuccess={refreshCurrent}
-      />
-      <CreateTransferModal
-        open={openTransferModal}
-        onClose={() => setOpenTransferModal(false)}
-        onSuccess={refreshCurrent}
-      />
-      <CreateAdjustmentModal
-        open={openAdjustmentModal}
-        onClose={() => setOpenAdjustmentModal(false)}
-        onSuccess={refreshCurrent}
-      />
-
-      <ValidateLocationModal
-        open={!!validateTarget}
-        title={
-          validateTarget?.type === 'receipt'
-            ? 'Validate Goods Receipt'
-            : 'Validate Goods Delivery'
-        }
-        locationLabel={
-          validateTarget?.type === 'receipt'
-            ? 'Receive Goods Into Destination Location'
-            : 'Ship Goods Out Of Source Location'
-        }
-        onClose={() => setValidateTarget(null)}
-        onConfirm={handleConfirmValidateLocation}
-      />
+      <RecentDocuments />
     </div>
+  );
+}
+
+function RecentDocuments() {
+  const navigate = useNavigate();
+  const receipts = useOperationList('receipt', { pageSize: 6 });
+  const deliveries = useOperationList('delivery', { pageSize: 6 });
+  const transfers = useOperationList('transfer', { pageSize: 6 });
+  const adjustments = useOperationList('adjustment', { pageSize: 6 });
+  const queries = { receipt: receipts, delivery: deliveries, transfer: transfers, adjustment: adjustments };
+  const loading = Object.values(queries).some((q) => q.isLoading);
+  const allFailed = Object.values(queries).every((q) => q.isError);
+
+  const rows = useMemo(() => {
+    const out: Array<{ kind: OperationKind; doc: AnyDoc }> = [];
+    for (const k of OPERATION_KINDS) {
+      const data = queries[k].data?.data;
+      if (Array.isArray(data)) data.forEach((doc) => out.push({ kind: k, doc }));
+    }
+    return out.sort((a, b) => b.doc.createdAt.localeCompare(a.doc.createdAt)).slice(0, 10);
+  }, [receipts.data, deliveries.data, transfers.data, adjustments.data]);
+
+  return (
+    <Section title="Latest documents" description="The newest receipts, deliveries, transfers and adjustments." className="mt-9">
+      <Card padded={false}>
+        {allFailed ? (
+          <ErrorState message={receipts.error?.message} onRetry={() => Object.values(queries).forEach((q) => q.refetch())} />
+        ) : loading ? (
+          <div className="space-y-3 p-6">
+            {Array.from({ length: 5 }, (_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+          </div>
+        ) : rows.length === 0 ? (
+          <EmptyState icon={ClipboardList} title="No documents yet" description="Create a receipt, delivery, transfer or adjustment to get started." />
+        ) : (
+          <ul className="divide-y divide-sienna/[0.06] px-2 py-2">
+            {rows.map(({ kind, doc }) => {
+              const cfg = OPERATIONS[kind];
+              const who = kind === 'adjustment' ? ('location' in doc ? doc.location?.name : null) : partnerOf(doc);
+              return (
+                <li key={`${kind}-${doc.id}`}>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`${cfg.path}?doc=${doc.id}`)}
+                    className="flex w-full items-center gap-4 rounded-[14px] px-4 py-3 text-left transition-colors hover:bg-dove/[0.12]"
+                  >
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[12px] bg-raspberry text-ondark" aria-hidden>
+                      <cfg.icon className="h-[18px] w-[18px]" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-mono text-[13px] font-semibold text-ink">{refOf(kind, doc.id)}</span>
+                      <span className="block truncate text-[12px] text-ink-2">
+                        {cfg.label}
+                        {who ? ` · ${who}` : ''} · {productsSummary(linesOf(kind, doc))}
+                      </span>
+                    </span>
+                    <span className="hidden w-24 text-right text-[12px] text-ink-2 sm:block">{timeAgo(doc.createdAt)}</span>
+                    <DocStatusBadge status={doc.status} />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Card>
+    </Section>
   );
 }
