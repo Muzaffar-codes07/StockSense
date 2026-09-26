@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AuthModule } from '../auth/auth.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { StockModule } from '../stock/stock.module';
 import { AdjustmentsController } from './adjustments.controller';
@@ -17,7 +18,8 @@ import { TransfersController } from './transfers.controller';
 import { TransfersService } from './transfers.service';
 
 @Module({
-  imports: [PrismaModule, StockModule],
+  // AuthModule provides JwtService, which JwtAuthGuard on every controller needs.
+  imports: [AuthModule, PrismaModule, StockModule],
   controllers: [
     OperationsController,
     ReceiptsController,
