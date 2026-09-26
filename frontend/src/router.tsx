@@ -3,11 +3,11 @@ import { AppShell } from './components/layout/AppShell';
 import { Login } from './pages/Login';
 import {
   Dashboard,
-  Operations,
-  MoveHistory,
   Settings,
   Profile,
 } from './pages/placeholders';
+import { Operations } from './pages/Operations';
+import { MoveHistory } from './pages/MoveHistory';
 import { ProductsPage } from './features/products/ProductsPage';
 import { ProductFormPage } from './features/products/ProductFormPage';
 import { StockPageWithAdjust } from './features/stock/UpdateStockModal';
