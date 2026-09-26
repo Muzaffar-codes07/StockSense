@@ -173,6 +173,21 @@ describe('stock_quant + StockQuantRepository (live DB)', () => {
     await expect(inventory.breakdown('00000000-0000-4000-8000-000000000000')).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  it('pages same-named products in a stable order (name, then SKU)', async () => {
+    // Inserted B-then-A so physical order disagrees with SKU order.
+    const twins: string[] = [];
+    for (const sku of [`${tag}-TWIN-B`, `${tag}-TWIN-A`]) {
+      twins.push((await prisma.product.create({ data: { name: `${tag} Twin`, sku } })).id);
+    }
+    try {
+      const page = async (skip: number) =>
+        (await repo.findRows({ search: `${tag} Twin`, take: 1, skip })).rows[0].sku;
+      expect([await page(0), await page(1)]).toEqual([`${tag}-TWIN-A`, `${tag}-TWIN-B`]);
+    } finally {
+      await prisma.product.deleteMany({ where: { id: { in: twins } } });
+    }
+  });
+
   it('treats % in search text literally', async () => {
     const { rows } = await repo.findRows({ search: '%' });
     expect(rows).toHaveLength(0);

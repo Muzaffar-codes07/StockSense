@@ -53,7 +53,7 @@ export class StockQuantRepository {
       ${this.rowsCte(f)}
       SELECT *, COUNT(*) OVER () AS total FROM rows
       WHERE (${statuses}::text[] IS NULL OR status = ANY(${statuses}::text[]))
-      ORDER BY name
+      ORDER BY name, sku
       LIMIT ${f.take ?? 1000}::int OFFSET ${f.skip ?? 0}::int`;
     return {
       rows: raw.map((r) => ({
