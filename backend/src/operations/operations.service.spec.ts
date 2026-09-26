@@ -1,4 +1,5 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { BadRequestException } from '@nestjs/common';
 import { DocStatus, MoveType, Prisma } from '@prisma/client';
 import { AdjustmentsService } from './adjustments.service';
 import { DeliveriesService } from './deliveries.service';

@@ -62,7 +62,7 @@ export function CreateReceiptModal({ open, onClose, onSuccess }: Props) {
     setLines(lines.filter((_, i) => i !== index));
   };
 
-  const updateLine = (index: number, field: keyof LineState, value: any) => {
+  const updateLine = (index: number, field: keyof LineState, value: string | number) => {
     const newLines = [...lines];
     newLines[index] = { ...newLines[index], [field]: value };
     setLines(newLines);
@@ -87,8 +87,8 @@ export function CreateReceiptModal({ open, onClose, onSuccess }: Props) {
       });
       onSuccess();
       onClose();
-    } catch (err: any) {
-      setError(err?.message ?? 'Failed to create receipt');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to create receipt');
     } finally {
       setLoading(false);
     }

@@ -51,8 +51,8 @@ export function ValidateLocationModal({
     try {
       await onConfirm(locationId);
       onClose();
-    } catch (err: any) {
-      setError(err?.message ?? 'Validation failed');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Validation failed');
     } finally {
       setLoading(false);
     }

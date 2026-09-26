@@ -7,8 +7,8 @@ import {
   LocationItem,
   ProductItem,
 } from '../../lib/operations';
-import { Plus, Trash2 } from 'lucide-react';
 import { stockApi } from '../../features/stock/api';
+import { Plus, Trash2 } from 'lucide-react';
 
 interface Props {
   open: boolean;
@@ -60,6 +60,7 @@ export function CreateAdjustmentModal({ open, onClose, onSuccess }: Props) {
       const here = perLocation.find((l) => l.locationId === locId);
       updateLine(lineIndex, 'recordedQty', here?.qty ?? 0);
     } catch {
+      // If stock can't be fetched, default recorded to 0 rather than block.
       updateLine(lineIndex, 'recordedQty', 0);
     }
   };
@@ -78,7 +79,7 @@ export function CreateAdjustmentModal({ open, onClose, onSuccess }: Props) {
     setLines(lines.filter((_, i) => i !== index));
   };
 
-  const updateLine = (index: number, field: keyof AdjustmentLineState, value: any) => {
+  const updateLine = (index: number, field: keyof AdjustmentLineState, value: string | number) => {
     setLines((prev) => {
       const newLines = [...prev];
       newLines[index] = { ...newLines[index], [field]: value };
@@ -118,9 +119,9 @@ export function CreateAdjustmentModal({ open, onClose, onSuccess }: Props) {
     setLoading(true);
     try {
       await createAdjustment({
-        locationId,
         // recordedQty is left to the server, which reads it from the ledger,
         // so the posted diff never comes from a stale screen.
+        locationId,
         lines: validLines.map((l) => ({
           productId: l.productId,
           countedQty: Number(l.countedQty),
@@ -128,8 +129,8 @@ export function CreateAdjustmentModal({ open, onClose, onSuccess }: Props) {
       });
       onSuccess();
       onClose();
-    } catch (err: any) {
-      setError(err?.message ?? 'Failed to create inventory adjustment');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to create inventory adjustment');
     } finally {
       setLoading(false);
     }

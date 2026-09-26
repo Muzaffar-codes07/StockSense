@@ -13,7 +13,7 @@ interface TableProps<T> {
 }
 
 // Shared data table (Role 2 owns styling). Roles 3 & 4 pass columns + rows.
-export function Table<T extends Record<string, unknown>>({
+export function Table<T extends object>({
   columns,
   rows,
   empty = 'No records',
@@ -42,7 +42,9 @@ export function Table<T extends Record<string, unknown>>({
               <tr key={i} className="border-t border-slate-100 hover:bg-slate-50">
                 {columns.map((c) => (
                   <td key={c.key} className="px-4 py-3 text-slate-700">
-                    {c.render ? c.render(row) : String(row[c.key] ?? '')}
+                    {c.render
+                      ? c.render(row)
+                      : String((row as Record<string, unknown>)[c.key] ?? '')}
                   </td>
                 ))}
               </tr>

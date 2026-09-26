@@ -34,3 +34,6 @@ Thumbs.db
 
 # Coverage / test
 coverage/
+
+# Local docker compose override (developer-specific)
+docker-compose.override.yml

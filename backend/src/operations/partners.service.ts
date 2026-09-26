@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PartnerType } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PartnerDto, PartnerQueryDto } from './dto/partner.dto';
 
@@ -8,7 +8,7 @@ export class PartnersService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(query?: PartnerQueryDto) {
-    const where: any = {};
+    const where: Prisma.PartnerWhereInput = {};
     if (query?.type) {
       where.type = query.type;
     }

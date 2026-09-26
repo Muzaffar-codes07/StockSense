@@ -327,3 +327,16 @@ export async function getProductsList(): Promise<ProductItem[]> {
   // Products endpoint returns Paginated { data: Product[] }
   return res.data?.data ?? res.data ?? [];
 }
+
+export interface ProductLocationStock {
+  locationId: string;
+  locationName: string;
+  warehouseName?: string;
+  qty: number;
+}
+
+// Current on-hand of a product broken down by location (Role 3's stock endpoint).
+export async function getProductStockByLocation(productId: string): Promise<ProductLocationStock[]> {
+  const res = await api.get(`/stock/${productId}/locations`);
+  return res.data ?? [];
+}

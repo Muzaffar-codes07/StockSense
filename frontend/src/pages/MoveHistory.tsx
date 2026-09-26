@@ -153,8 +153,8 @@ export function MoveHistory() {
       </FilterBar>
 
       <Table
-        columns={columns as any}
-        rows={(movesData?.data ?? []) as any}
+        columns={columns}
+        rows={movesData?.data ?? []}
         empty={isLoading ? 'Loading stock ledger movements...' : 'No ledger movements found'}
       />
     </div>

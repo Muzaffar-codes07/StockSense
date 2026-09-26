@@ -590,32 +590,32 @@ export function Operations() {
       {/* Tables based on active tab */}
       {activeTab === 'receipts' && (
         <Table
-          columns={receiptColumns as any}
-          rows={(receiptsData?.data ?? []) as any}
+          columns={receiptColumns}
+          rows={receiptsData?.data ?? []}
           empty={receiptsLoading ? 'Loading receipts...' : 'No receipts found'}
         />
       )}
 
       {activeTab === 'deliveries' && (
         <Table
-          columns={deliveryColumns as any}
-          rows={(deliveriesData?.data ?? []) as any}
+          columns={deliveryColumns}
+          rows={deliveriesData?.data ?? []}
           empty={deliveriesLoading ? 'Loading deliveries...' : 'No deliveries found'}
         />
       )}
 
       {activeTab === 'transfers' && (
         <Table
-          columns={transferColumns as any}
-          rows={(transfersData?.data ?? []) as any}
+          columns={transferColumns}
+          rows={transfersData?.data ?? []}
           empty={transfersLoading ? 'Loading transfers...' : 'No transfers found'}
         />
       )}
 
       {activeTab === 'adjustments' && (
         <Table
-          columns={adjustmentColumns as any}
-          rows={(adjustmentsData?.data ?? []) as any}
+          columns={adjustmentColumns}
+          rows={adjustmentsData?.data ?? []}
           empty={adjustmentsLoading ? 'Loading adjustments...' : 'No adjustments found'}
         />
       )}
