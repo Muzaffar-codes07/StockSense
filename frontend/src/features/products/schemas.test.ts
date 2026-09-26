@@ -33,6 +33,12 @@ describe('productSchema (mirrors the backend DTO)', () => {
     expect(errorsFor({ ...valid, initialQty: '1.0005' }).initialQty).toEqual(['At most 3 decimals']);
   });
 
+  it('requires a unit cost instead of silently saving a blank as 0', () => {
+    expect(errorsFor({ ...valid, unitCost: '' }).unitCost).toEqual(['Unit cost is required']);
+    expect(errorsFor({ ...valid, unitCost: '   ' }).unitCost).toEqual(['Unit cost is required']);
+    expect(productSchema.parse({ ...valid, unitCost: '0' }).unitCost).toBe(0); // an explicit 0 is fine
+  });
+
   it('requires a name', () => {
     expect(errorsFor({ ...valid, name: '   ' }).name).toEqual(['Name is required']);
   });

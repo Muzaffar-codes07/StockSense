@@ -5,6 +5,12 @@ import { UOMS, type ProductInput } from './types';
 const maxDecimals = (places: number) => (n: number) =>
   Math.abs(n * 10 ** places - Math.round(n * 10 ** places)) < 1e-6;
 
+// Required numeric input: a blank field is "missing", never a silent 0.
+const requiredNumber = (v: unknown) => {
+  if (typeof v === 'string') return v.trim() === '' ? undefined : Number(v);
+  return typeof v === 'number' && Number.isNaN(v) ? undefined : v;
+};
+
 const blankToUndefined = (v: unknown) =>
   v === '' || v === null || (typeof v === 'number' && Number.isNaN(v)) ? undefined : v;
 
@@ -16,10 +22,13 @@ export const productSchema = z.object({
     .regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/, 'SKU must be 1-32 letters, digits, dot, dash or underscore'),
   categoryId: z.string(),
   uom: z.enum(UOMS),
-  unitCost: z.coerce
-    .number({ invalid_type_error: 'Enter a number' })
-    .min(0, 'Unit cost cannot be negative')
-    .refine(maxDecimals(2), 'At most 2 decimals'),
+  unitCost: z.preprocess(
+    requiredNumber,
+    z
+      .number({ required_error: 'Unit cost is required', invalid_type_error: 'Enter a number' })
+      .min(0, 'Unit cost cannot be negative')
+      .refine(maxDecimals(2), 'At most 2 decimals'),
+  ),
   initialQty: z.preprocess(
     blankToUndefined,
     z.coerce

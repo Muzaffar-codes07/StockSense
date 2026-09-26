@@ -108,6 +108,24 @@ describe('StockPage forecast column', () => {
     expect(cells.queryByText(/incoming$/)).not.toBeInTheDocument();
   });
 
+  it('accepts a lowercase ?status= in the URL (e.g. a hand-typed or shared link)', async () => {
+    get.mockImplementation(async (url: string) => {
+      if (url === '/stock') return { data: { data: [varnish], page: 1, pageSize: 20, total: 1, totalPages: 1 } };
+      return { data: [] };
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/stock?status=low']}>
+          <StockPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await screen.findByText('Wood Varnish 1L');
+    expect(get).toHaveBeenCalledWith('/stock', { params: expect.objectContaining({ status: 'LOW' }) });
+    expect(screen.getByLabelText('Stock status')).toHaveValue('LOW');
+  });
+
   describe('free-to-use breakdown', () => {
     it('opens a worked sum when the free-to-use value is clicked', async () => {
       renderPage();

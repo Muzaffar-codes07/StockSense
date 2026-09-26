@@ -14,7 +14,8 @@ const isStatus = (v: string | null): v is StockStatus => v === 'OK' || v === 'LO
 
 export function StockPage({ onUpdate }: { onUpdate?: (row: StockRow) => void }) {
   const [params, setParams] = useSearchParams();
-  const statusParam = params.get('status');
+  // Case-insensitive, so a hand-typed or shared ?status=low link still filters.
+  const statusParam = params.get('status')?.toUpperCase() ?? null;
   const status: StockStatus | '' = isStatus(statusParam) ? statusParam : '';
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState('');

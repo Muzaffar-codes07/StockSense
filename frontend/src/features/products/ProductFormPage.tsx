@@ -51,7 +51,15 @@ export function ProductFormPage() {
         </Link>
         <span className="text-slate-300">/</span>
         <h1 className="text-2xl font-semibold text-slate-800">{detail ? detail.name : 'New product'}</h1>
+        {detail && !detail.isActive && (
+          <span className="rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-600">Archived</span>
+        )}
       </div>
+      {detail && !detail.isActive && (
+        <p className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+          This product is archived: it is hidden from stock lists and pickers. Its stock history is kept.
+        </p>
+      )}
       <ProductForm key={detail?.id ?? 'new'} product={detail} />
       {detail && (
         <div className="grid gap-6 lg:grid-cols-2">
@@ -178,7 +186,7 @@ function ProductForm({ product }: { product?: ProductDetail }) {
         <button type="submit" className={primary} disabled={isSubmitting}>
           {isSubmitting ? 'Saving…' : product ? 'Save changes' : 'Create product'}
         </button>
-        {product &&
+        {product?.isActive &&
           (confirmArchive ? (
             <span className="flex items-center gap-2 text-sm">
               <span className="text-slate-600">Hide this product from lists? Its history is kept.</span>
