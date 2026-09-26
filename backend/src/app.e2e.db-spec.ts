@@ -284,9 +284,10 @@ describe('HTTP API (live DB)', () => {
     });
 
     it('a product in a missing category is 400', async () => {
-      await authed('post', '/products')
-        .send({ name: `${tag} Orphan`, sku: `${tag}-ORPH`, uom: 'pcs', categoryId: missing })
+      const res = await authed('post', '/products')
+        .send({ name: `${tag} Orphan`, sku: `${tag}-ORPH`, uom: 'unit', unitCost: 1, categoryId: missing })
         .expect(400);
+      expect(String(res.body.message)).toMatch(/category/i);
     });
   });
 });
