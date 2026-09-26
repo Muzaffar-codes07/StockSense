@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsNumberString, IsString, Length, MinLength } from 'class-validator';
 
 // class-validator DTOs = robust input validation for free (scored requirement).
 export class SignUpDto {
@@ -31,7 +31,8 @@ export class ResetPasswordDto {
   @IsEmail()
   email!: string;
 
-  @IsString()
+  @IsNumberString({ no_symbols: true }, { message: 'OTP must be 6 digits' })
+  @Length(6, 6, { message: 'OTP must be 6 digits' })
   otpCode!: string;
 
   @IsString()

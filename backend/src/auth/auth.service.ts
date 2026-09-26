@@ -1,17 +1,23 @@
 import {
+  BadRequestException,
   Injectable,
   ConflictException,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { randomInt } from 'node:crypto';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto, ResetPasswordDto, SignUpDto } from './dto/auth.dto';
 
-// SKELETON (Role 1). Sign-up + login are implemented so the app is usable;
-// OTP methods are stubbed for you to finish. See docs/Role-1-Backend-Core-Data.md.
+const OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const OTP_MAX_ATTEMPTS = 5;
+
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
@@ -50,16 +56,82 @@ export class AuthService {
     return user;
   }
 
-  // TODO(Role 1): generate a 6-digit OTP, store in PasswordResetOtp with a
-  // short expiry, and send via SMTP (or surface in a dev panel for the demo).
-  async requestOtp(_email: string) {
-    throw new Error('Not implemented: OTP request');
+  // Issue a password-reset OTP. Never reveals whether the email exists
+  // (anti-enumeration): the response is identical either way. In non-production
+  // the code is also returned as `devOtp` so the demo/dev panel can show it —
+  // in production it is only logged/sent (keeps us off third-party APIs).
+  async requestOtp(email: string) {
+    const generic = {
+      message: 'If that email is registered, a reset code has been sent.',
+    };
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) return generic;
+
+    // Only one active code at a time — invalidate previous unused ones.
+    await this.prisma.passwordResetOtp.updateMany({
+      where: { userId: user.id, used: false },
+      data: { used: true },
+    });
+
+    const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+    await this.prisma.passwordResetOtp.create({
+      data: {
+        userId: user.id,
+        otpCode: await argon2.hash(code),
+        expiresAt: new Date(Date.now() + OTP_TTL_MS),
+      },
+    });
+    this.logger.log(`Password reset code for ${email}: ${code} (valid 10m)`);
+
+    return process.env.NODE_ENV === 'production'
+      ? generic
+      : { ...generic, devOtp: code };
   }
 
-  // TODO(Role 1): verify the OTP (exists, not used, not expired), then
-  // argon2-hash and set the new password, and mark the OTP used.
-  async resetPassword(_dto: ResetPasswordDto) {
-    throw new Error('Not implemented: password reset');
+  // Verify the latest active OTP and set the new password. Generic errors and
+  // an attempt cap keep it safe against enumeration and brute force.
+  async resetPassword(dto: ResetPasswordDto) {
+    const invalid = new BadRequestException('Invalid or expired code');
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+    if (!user) throw invalid;
+
+    const otp = await this.prisma.passwordResetOtp.findFirst({
+      where: { userId: user.id, used: false, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!otp) throw invalid;
+
+    if (otp.attempts >= OTP_MAX_ATTEMPTS) {
+      await this.prisma.passwordResetOtp.update({
+        where: { id: otp.id },
+        data: { used: true },
+      });
+      throw invalid;
+    }
+
+    if (!(await argon2.verify(otp.otpCode, dto.otpCode))) {
+      await this.prisma.passwordResetOtp.update({
+        where: { id: otp.id },
+        data: { attempts: { increment: 1 } },
+      });
+      throw invalid;
+    }
+
+    // Success: set the new password and burn the code, atomically.
+    const passwordHash = await argon2.hash(dto.newPassword);
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash },
+      }),
+      this.prisma.passwordResetOtp.update({
+        where: { id: otp.id },
+        data: { used: true },
+      }),
+    ]);
+    return { message: 'Password updated. Please log in.' };
   }
 
   private async issueTokens(sub: string, email: string) {

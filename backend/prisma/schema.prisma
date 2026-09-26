@@ -31,9 +31,10 @@ model PasswordResetOtp {
   id        String   @id @default(uuid())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String
-  otpCode   String
+  otpCode   String // argon2 hash of the 6-digit code, never the code itself
   expiresAt DateTime
   used      Boolean  @default(false)
+  attempts  Int      @default(0) // failed verifies; caps brute force
   createdAt DateTime @default(now())
 
   @@index([userId])
