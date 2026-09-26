@@ -60,6 +60,8 @@ describe('HTTP API (live DB)', () => {
 
   afterAll(async () => {
     await prisma.stockMove.deleteMany({ where: { productId } });
+    await prisma.receiptLine.deleteMany({ where: { productId } });
+    await prisma.receipt.deleteMany({ where: { lines: { none: {} } } });
     await prisma.deliveryLine.deleteMany({ where: { productId } });
     await prisma.delivery.deleteMany({ where: { lines: { none: {} } } });
     await prisma.transferLine.deleteMany({ where: { productId } });
@@ -178,6 +180,42 @@ describe('HTTP API (live DB)', () => {
       await authed('patch', `/products/${productId}`).send({ unitCost: 2 }).expect(200);
       const created = await authed('post', '/categories').send({ name: `${tag} Mgr` }).expect(201);
       await http().delete(`/categories/${created.body.id}`).set('Authorization', `Bearer ${token}`).expect(204);
+    });
+  });
+
+  describe('role-based access on operations (#18, audit §8.7)', () => {
+    const as = (bearer: string, method: 'get' | 'post' | 'patch' | 'put', url: string) =>
+      http()[method](url).set('Authorization', `Bearer ${bearer}`);
+
+    it('STAFF gets 403 on every receipt and delivery change; nothing changes', async () => {
+      const receipt = await as(token, 'post', '/operations/receipts').send({ lines: [{ productId, qty: 1 }] }).expect(201);
+      const delivery = await as(token, 'post', '/operations/deliveries').send({ lines: [{ productId, qty: 1 }] }).expect(201);
+      for (const [kind, id] of [['receipts', receipt.body.id], ['deliveries', delivery.body.id]] as const) {
+        const attempts: ['post' | 'patch' | 'put', string, object][] = [
+          ['post', `/operations/${kind}`, { lines: [{ productId, qty: 1 }] }],
+          ['patch', `/operations/${kind}/${id}`, { lines: [{ productId, qty: 2 }] }],
+          ['put', `/operations/${kind}/${id}/status`, { status: 'READY' }],
+          ['post', `/operations/${kind}/${id}/validate`, { locationId: store }],
+          ['post', `/operations/${kind}/${id}/cancel`, {}],
+        ];
+        for (const [method, url, body] of attempts) {
+          const res = await as(staffToken, method, url).send(body);
+          expect({ route: `${method} ${url}`, status: res.status }).toEqual({ route: `${method} ${url}`, status: 403 });
+        }
+        const doc = await as(staffToken, 'get', `/operations/${kind}/${id}`).expect(200); // reads stay open
+        expect(doc.body.status).toBe('DRAFT');
+        expect(await movesFor(id)).toBe(0);
+      }
+    });
+
+    it('STAFF can still move stock internally and count it (transfers, adjustments)', async () => {
+      await as(staffToken, 'post', '/operations/transfers')
+        .send({ lines: [{ productId, qty: 1, fromLocationId: store, toLocationId: shelf }] })
+        .expect(201);
+      const count = await as(staffToken, 'post', '/operations/adjustments')
+        .send({ locationId: shelf, lines: [{ productId, countedQty: 0 }] })
+        .expect(201);
+      await as(staffToken, 'post', `/operations/adjustments/${count.body.id}/validate`).expect(201); // "Update stock"
     });
   });
 
