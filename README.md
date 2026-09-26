@@ -76,8 +76,12 @@ New sign-ups are **Staff**; the seeded admin is **Admin** (allowed everything).
 | Action | Staff | Manager | Admin |
 |---|:-:|:-:|:-:|
 | View dashboard, products, stock, operations, history | ✅ | ✅ | ✅ |
+| Transfers, inventory adjustments, *Update stock* | ✅ | ✅ | ✅ |
+| Receipts and deliveries (create, edit, validate, cancel) | — | ✅ | ✅ |
 | Create / edit / archive products, categories, reorder rules | — | ✅ | ✅ |
 | Create / edit warehouses and locations | — | ✅ | ✅ |
+
+Validated documents can't be canceled — correct them with an inventory adjustment.
 
 ## Tests
 
