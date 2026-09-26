@@ -9,6 +9,7 @@ import {
   Profile,
 } from './pages/placeholders';
 import { ProductsPage } from './features/products/ProductsPage';
+import { ProductFormPage } from './features/products/ProductFormPage';
 
 export const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
@@ -18,6 +19,8 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Dashboard /> },
       { path: 'products', element: <ProductsPage /> },
+      { path: 'products/new', element: <ProductFormPage /> },
+      { path: 'products/:id', element: <ProductFormPage /> },
       { path: 'operations', element: <Operations /> },
       { path: 'move-history', element: <MoveHistory /> },
       { path: 'settings', element: <Settings /> },
