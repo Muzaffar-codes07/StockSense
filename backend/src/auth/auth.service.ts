@@ -40,6 +40,16 @@ export class AuthService {
     return this.issueTokens(user.id, user.email);
   }
 
+  // Current user for the frontend's login-state check (never returns the hash).
+  async me(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true, createdAt: true },
+    });
+    if (!user) throw new UnauthorizedException('User no longer exists');
+    return user;
+  }
+
   // TODO(Role 1): generate a 6-digit OTP, store in PasswordResetOtp with a
   // short expiry, and send via SMTP (or surface in a dev panel for the demo).
   async requestOtp(_email: string) {
