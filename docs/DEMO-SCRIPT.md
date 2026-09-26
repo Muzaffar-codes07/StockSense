@@ -113,5 +113,9 @@ validates the varnish receipt so Varnish flips from OUT to OK on screen.
 - Safety: stock can't go negative (a per-location lock); a document can't post twice
   (atomic claim in `validate()`); DB CHECK constraints reject malformed moves (qty ≤ 0, no location).
 - Terminal: `npm run test:db -w backend` → show *"5 concurrent validations: exactly one posts"* and the green totals.
+- Ledger health: `GET /ledger/integrity` → `"ok": true` across 5 checks (view matches a fresh ledger sum,
+  no negative stock, every validated document posted exactly once, no orphan moves, moves well-formed).
+- Time machine: `GET /ledger/as-of?at=<4 days ago>` → Steel Rods **100 kg** (Main Store 70 / Production Rack 30),
+  against **77 kg** today. It's the same ledger replayed up to a date.
 - Security: JWT + role-based access, rate-limited auth, hashed reset codes, 401 on every protected route (tested).
 - Close: "Every stock number traces back to a move in the ledger."
