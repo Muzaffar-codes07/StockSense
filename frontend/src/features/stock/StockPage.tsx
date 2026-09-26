@@ -63,6 +63,21 @@ export function StockPage({ onUpdate }: { onUpdate?: (row: StockRow) => void }) 
         </span>
       ),
     },
+    {
+      key: 'forecast',
+      header: 'Forecast',
+      render: (r) => (
+        <span
+          className={r.forecast < 0 ? 'font-medium text-red-600' : undefined}
+          title={`${formatQty(r.onHand)} on hand + ${formatQty(r.incoming)} incoming − ${formatQty(r.reserved)} reserved`}
+        >
+          {formatQty(r.forecast)} {r.uom}
+          {r.incoming > 0 && (
+            <span className="block text-xs text-emerald-600">+{formatQty(r.incoming)} incoming</span>
+          )}
+        </span>
+      ),
+    },
     { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.status} /> },
     ...(onUpdate
       ? [

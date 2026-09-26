@@ -13,6 +13,10 @@ export interface StockRow {
   onHand: number;
   reserved: number;
   freeToUse: number;
+  /** On open (WAITING/READY) receipts, not yet received. */
+  incoming: number;
+  /** onHand + incoming − reserved: expected stock once open documents are done. */
+  forecast: number;
   minQty: number | null;
   maxQty: number | null;
   status: StockStatus;

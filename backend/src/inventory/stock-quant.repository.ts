@@ -10,8 +10,11 @@ import {
   StockStatus,
 } from './stock-row';
 
-/** Delivery statuses whose quantities are promised but not yet shipped. */
-export const RESERVING_STATUSES = ['WAITING', 'READY'];
+/**
+ * Confirmed but not yet validated: deliveries in these statuses reserve stock,
+ * receipts in them count as incoming. Drafts are only plans; DONE is on hand.
+ */
+export const OPEN_STATUSES = ['WAITING', 'READY'];
 
 type Num = Prisma.Decimal;
 interface RawRow {
@@ -25,6 +28,8 @@ interface RawRow {
   onHand: Num;
   reserved: Num;
   freeToUse: Num;
+  incoming: Num;
+  forecast: Num;
   minQty: Num | null;
   maxQty: Num | null;
   status: StockStatus;
@@ -61,6 +66,8 @@ export class StockQuantRepository {
         onHand: Number(r.onHand),
         reserved: Number(r.reserved),
         freeToUse: Number(r.freeToUse),
+        incoming: Number(r.incoming),
+        forecast: Number(r.forecast),
         minQty: num(r.minQty),
         maxQty: num(r.maxQty),
         status: r.status,
@@ -101,7 +108,7 @@ export class StockQuantRepository {
     };
   }
 
-  /** Active products + derived on-hand, reservations and reorder rule. */
+  /** Active products + derived on-hand, reservations, incoming and reorder rule. */
   private rowsCte(f: StockFilter): Prisma.Sql {
     const text = f.search?.trim();
     const search = text ? `%${escapeLike(text)}%` : null;
@@ -114,8 +121,15 @@ export class StockQuantRepository {
         SELECT dl."productId" AS product_id, SUM(dl.qty) AS qty
         FROM "DeliveryLine" dl
         JOIN "Delivery" d ON d.id = dl."deliveryId"
-        WHERE d.status::text IN (${Prisma.join(RESERVING_STATUSES)})
+        WHERE d.status::text IN (${Prisma.join(OPEN_STATUSES)})
         GROUP BY dl."productId"
+      ),
+      incoming AS (
+        SELECT rl."productId" AS product_id, SUM(rl.qty) AS qty
+        FROM "ReceiptLine" rl
+        JOIN "Receipt" rc ON rc.id = rl."receiptId"
+        WHERE rc.status::text IN (${Prisma.join(OPEN_STATUSES)})
+        GROUP BY rl."productId"
       ),
       rows AS (
         SELECT p.id, p.name, p.sku, p.uom, p."unitCost",
@@ -123,6 +137,8 @@ export class StockQuantRepository {
                COALESCE(o.qty, 0) AS "onHand",
                COALESCE(r.qty, 0) AS reserved,
                COALESCE(o.qty, 0) - COALESCE(r.qty, 0) AS "freeToUse",
+               COALESCE(i.qty, 0) AS incoming,
+               COALESCE(o.qty, 0) + COALESCE(i.qty, 0) - COALESCE(r.qty, 0) AS forecast,
                rr."minQty", rr."maxQty",
                CASE
                  WHEN COALESCE(o.qty, 0) <= 0 THEN 'OUT'
@@ -133,6 +149,7 @@ export class StockQuantRepository {
         LEFT JOIN "Category" c ON c.id = p."categoryId"
         LEFT JOIN onhand o ON o.product_id = p.id
         LEFT JOIN reserved r ON r.product_id = p.id
+        LEFT JOIN incoming i ON i.product_id = p.id
         LEFT JOIN "ReorderRule" rr ON rr."productId" = p.id
         WHERE p."isActive" = true
           AND (${search}::text IS NULL OR p.name ILIKE ${search} OR p.sku ILIKE ${search})

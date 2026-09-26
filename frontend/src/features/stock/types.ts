@@ -13,6 +13,8 @@ export type StockRow = {
   onHand: number;
   reserved: number;
   freeToUse: number;
+  incoming: number;
+  forecast: number;
   minQty: number | null;
   maxQty: number | null;
   status: StockStatus;

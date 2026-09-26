@@ -108,6 +108,26 @@ describe('stock_quant + StockQuantRepository (live DB)', () => {
     }
   });
 
+  it('forecasts on hand + open receipts − open deliveries (drafts and done ignored)', async () => {
+    const docs = await Promise.all([
+      prisma.receipt.create({ data: { status: 'READY', lines: { create: { productId: steel, qty: 40 } } } }),
+      prisma.receipt.create({ data: { status: 'DRAFT', lines: { create: { productId: steel, qty: 500 } } } }),
+      prisma.receipt.create({ data: { status: 'DONE', lines: { create: { productId: steel, qty: 900 } } } }),
+    ]);
+    const delivery = await prisma.delivery.create({
+      data: { status: 'WAITING', lines: { create: { productId: steel, qty: 7 } } },
+    });
+    try {
+      const { rows } = await repo.findRows({ search: `${tag} Steel` });
+      expect(rows[0]).toMatchObject({ onHand: 77, incoming: 40, reserved: 7, forecast: 110 });
+      const { rows: idleRows } = await repo.findRows({ search: `${tag} Idle` });
+      expect(idleRows[0]).toMatchObject({ incoming: 0, forecast: 0 });
+    } finally {
+      await prisma.receipt.deleteMany({ where: { id: { in: docs.map((d) => d.id) } } });
+      await prisma.delivery.delete({ where: { id: delivery.id } });
+    }
+  });
+
   it('treats % in search text literally', async () => {
     const { rows } = await repo.findRows({ search: '%' });
     expect(rows).toHaveLength(0);
