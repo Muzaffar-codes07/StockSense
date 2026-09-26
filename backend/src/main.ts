@@ -11,7 +11,7 @@ async function bootstrap() {
 
   const app = configureApp(await NestFactory.create(AppModule));
 
-  const port = process.env.API_PORT ? Number(process.env.API_PORT) : 3000;
+  const port = Number(process.env.PORT ?? process.env.API_PORT ?? 3000);
   await app.listen(port);
   // eslint-disable-next-line no-console
   console.log(`StockSense API running on http://localhost:${port}`);
