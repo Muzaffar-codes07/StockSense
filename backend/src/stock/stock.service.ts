@@ -40,29 +40,72 @@ export class StockService {
         'a move needs a fromLocation, a toLocation, or both',
       );
     }
-    const db = tx ?? this.prisma;
-    return db.stockMove.create({
-      data: {
-        productId: input.productId,
-        qty: new Prisma.Decimal(input.qty),
-        moveType: input.moveType,
-        fromLocationId: input.fromLocationId ?? null,
-        toLocationId: input.toLocationId ?? null,
-        docType: input.docType,
-        docId: input.docId,
-        createdById: input.createdById ?? null,
-      },
-    });
+    const write = (db: Prisma.TransactionClient) =>
+      db.stockMove.create({
+        data: {
+          productId: input.productId,
+          qty: new Prisma.Decimal(input.qty),
+          moveType: input.moveType,
+          fromLocationId: input.fromLocationId ?? null,
+          toLocationId: input.toLocationId ?? null,
+          docType: input.docType,
+          docId: input.docId,
+          createdById: input.createdById ?? null,
+        },
+      });
+
+    const fromLocationId = input.fromLocationId;
+    if (!fromLocationId) return write(tx ?? this.prisma);
+
+    // Outgoing move: the check and the write must be atomic, so they always run
+    // in a transaction (the caller's, or a new one).
+    const guarded = async (db: Prisma.TransactionClient) => {
+      await this.assertAvailable(db, input.productId, fromLocationId, input.qty);
+      return write(db);
+    };
+    return tx ? guarded(tx) : this.prisma.$transaction(guarded);
   }
 
-  /** Current on-hand quantity of a product at a single location. */
-  async stockOnHand(productId: string, locationId: string): Promise<number> {
+  /**
+   * Stock can never go negative. Serialises writers per (product, location) with
+   * a transaction-scoped advisory lock, then reads on-hand through the same
+   * transaction so earlier lines of the same document are counted.
+   */
+  private async assertAvailable(
+    db: Prisma.TransactionClient,
+    productId: string,
+    locationId: string,
+    qty: number,
+  ) {
+    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${productId} || ':' || ${locationId}))`;
+    const available = await this.stockOnHand(productId, locationId, db);
+    if (new Prisma.Decimal(available).lessThan(qty)) {
+      const product = await db.product.findUnique({
+        where: { id: productId },
+        select: { name: true, sku: true },
+      });
+      const label = product ? `${product.name} (${product.sku})` : productId;
+      throw new BadRequestException(
+        `Not enough stock for ${label}: ${available} available, ${qty} requested`,
+      );
+    }
+  }
+
+  /**
+   * Current on-hand quantity of a product at a single location. Pass `db` to
+   * read inside a transaction.
+   */
+  async stockOnHand(
+    productId: string,
+    locationId: string,
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<number> {
     const [inAgg, outAgg] = await Promise.all([
-      this.prisma.stockMove.aggregate({
+      db.stockMove.aggregate({
         _sum: { qty: true },
         where: { productId, toLocationId: locationId },
       }),
-      this.prisma.stockMove.aggregate({
+      db.stockMove.aggregate({
         _sum: { qty: true },
         where: { productId, fromLocationId: locationId },
       }),

@@ -58,14 +58,39 @@ describe('StockService (ledger core)', () => {
       expect(arg.data.createdById).toBe('user1');
     });
 
+    // A transaction client holding `onHand` units at the source location.
+    const txWithStock = (onHand: number) => ({
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      product: { findUnique: jest.fn().mockResolvedValue({ name: 'Steel', sku: 'STEEL-1' }) },
+      stockMove: {
+        create: jest.fn().mockResolvedValue({}),
+        aggregate: jest
+          .fn()
+          .mockResolvedValueOnce({ _sum: { qty: new Prisma.Decimal(onHand) } }) // in
+          .mockResolvedValueOnce({ _sum: { qty: null } }), // out
+      },
+    });
+
     it('uses the transaction client when one is provided', async () => {
-      const tx = { stockMove: { create: jest.fn().mockResolvedValue({}) } };
+      const tx = txWithStock(10);
       await service.postMove(
         { productId: 'p1', qty: 10, moveType: MoveType.DELIVERY, fromLocationId: 'loc1' },
         tx as never,
       );
+      expect(tx.$executeRaw).toHaveBeenCalledTimes(1); // per-location lock taken
       expect(tx.stockMove.create).toHaveBeenCalledTimes(1);
       expect(prisma.stockMove.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects an outgoing move larger than on-hand without writing', async () => {
+      const tx = txWithStock(10);
+      await expect(
+        service.postMove(
+          { productId: 'p1', qty: 25, moveType: MoveType.DELIVERY, fromLocationId: 'loc1' },
+          tx as never,
+        ),
+      ).rejects.toThrow('Not enough stock for Steel (STEEL-1): 10 available, 25 requested');
+      expect(tx.stockMove.create).not.toHaveBeenCalled();
     });
   });
 
