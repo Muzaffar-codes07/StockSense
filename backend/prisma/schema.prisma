@@ -91,6 +91,8 @@ model Product {
   category   Category? @relation(fields: [categoryId], references: [id])
   categoryId String?
   uom        String   @default("unit") // unit of measure
+  unitCost   Decimal  @default(0) @db.Decimal(12, 2) // per-unit cost -> stock-value KPI
+  isActive   Boolean  @default(true) // archive instead of delete (moves reference products)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -158,7 +160,11 @@ model StockMove {
   doneAt         DateTime  @default(now())
   createdAt      DateTime  @default(now())
 
-  @@index([productId])
+  // Composites serve the stock_quant view and per-product stock lookups.
+  // (A leading-column index on productId alone would be redundant with these.)
+  @@index([productId, toLocationId])
+  @@index([productId, fromLocationId])
+  // Kept for location-only scans (e.g. "all moves in/out of location X").
   @@index([fromLocationId])
   @@index([toLocationId])
   @@index([docType, docId])

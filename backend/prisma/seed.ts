@@ -34,8 +34,8 @@ async function main() {
 
   await prisma.product.createMany({
     data: [
-      { name: 'Steel Rods', sku: 'STEEL-001', categoryId: raw.id, uom: 'kg' },
-      { name: 'Office Chair', sku: 'CHAIR-001', categoryId: finished.id, uom: 'unit' },
+      { name: 'Steel Rods', sku: 'STEEL-001', categoryId: raw.id, uom: 'kg', unitCost: 1.5 },
+      { name: 'Office Chair', sku: 'CHAIR-001', categoryId: finished.id, uom: 'unit', unitCost: 45.0 },
     ],
   });
 

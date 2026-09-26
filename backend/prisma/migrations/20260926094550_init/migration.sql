@@ -68,6 +68,8 @@ CREATE TABLE "Product" (
     "sku" TEXT NOT NULL,
     "categoryId" TEXT,
     "uom" TEXT NOT NULL DEFAULT 'unit',
+    "unitCost" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -219,7 +221,10 @@ CREATE INDEX "Product_categoryId_idx" ON "Product"("categoryId");
 CREATE UNIQUE INDEX "ReorderRule_productId_key" ON "ReorderRule"("productId");
 
 -- CreateIndex
-CREATE INDEX "StockMove_productId_idx" ON "StockMove"("productId");
+CREATE INDEX "StockMove_productId_toLocationId_idx" ON "StockMove"("productId", "toLocationId");
+
+-- CreateIndex
+CREATE INDEX "StockMove_productId_fromLocationId_idx" ON "StockMove"("productId", "fromLocationId");
 
 -- CreateIndex
 CREATE INDEX "StockMove_fromLocationId_idx" ON "StockMove"("fromLocationId");
@@ -296,3 +301,23 @@ ALTER TABLE "AdjustmentLine" ADD CONSTRAINT "AdjustmentLine_adjustmentId_fkey" F
 -- AddForeignKey
 ALTER TABLE "AdjustmentLine" ADD CONSTRAINT "AdjustmentLine_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
+
+-- ---------------------------------------------------------------------------
+-- stock_quant: derived on-hand qty per (product, location).
+-- MANUALLY MAINTAINED — Prisma does not model views, so it is not in
+-- schema.prisma and `migrate dev` will neither create, drop, nor drift-check it.
+-- Read-only: postMove() remains the sole writer to "StockMove".
+-- If a future migration alters the "StockMove" columns this view reads
+-- ("productId" / "toLocationId" / "fromLocationId" / "qty"), that migration must
+-- DROP and re-CREATE this view.
+-- Consumed by Role 3 via $queryRaw (e.g. SELECT * FROM stock_quant WHERE qty <> 0).
+-- ---------------------------------------------------------------------------
+CREATE VIEW stock_quant AS
+SELECT product_id, location_id, SUM(qty) AS qty FROM (
+  SELECT "productId" AS product_id, "toLocationId" AS location_id, "qty"
+    FROM "StockMove" WHERE "toLocationId" IS NOT NULL
+  UNION ALL
+  SELECT "productId", "fromLocationId", -"qty"
+    FROM "StockMove" WHERE "fromLocationId" IS NOT NULL
+) m
+GROUP BY product_id, location_id;

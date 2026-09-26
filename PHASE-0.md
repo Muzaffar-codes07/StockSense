@@ -47,10 +47,15 @@ npm run start:dev
 # open http://localhost:3000/health  ->  { "status": "ok", "db": true }
 ```
 
-- [ ] `migrate deploy` applies cleanly
+- [ ] `migrate deploy` applies cleanly (includes the hand-written `stock_quant` view)
 - [ ] `prisma:seed` runs without error
 - [ ] `GET /health` shows `"db": true`
+- [ ] View works: `psql "$DATABASE_URL" -c "SELECT * FROM stock_quant LIMIT 1;"` returns without error
 - [ ] Signed off by: __________________
+
+### Manual DB objects (not in schema.prisma)
+
+- **`stock_quant` view** — derived on-hand qty per (product, location); the single-query source for all stock screens and dashboard numbers. Read-only via `$queryRaw`; `postMove()` stays the sole writer. Prisma does not model views, so **any future migration that alters the `StockMove` columns it reads must DROP and re-CREATE it** (noted in the migration file).
 
 ## ⚠️ Gate B — Team schema review (~15 min, all members)
 
@@ -60,6 +65,8 @@ Everyone reads `backend/prisma/schema.prisma` and agrees on:
 - [ ] Entity coverage matches the problem statement (products, receipts, deliveries, transfers, adjustments, ledger)
 - [ ] The ledger model (derived stock, no stored on-hand) is understood by all
 - [ ] `Decimal(18,3)` quantities and `Location` relations accepted
+- [ ] `Product.unitCost` (stock-value KPI) and `Product.isActive` (archive-not-delete) accepted
+- [ ] `stock_quant` view is the agreed read path for stock screens/KPIs (via `$queryRaw`)
 - [ ] Naming conventions agreed (so all roles are consistent)
 - [ ] Reviewed by: __________ / __________ / __________ / __________
 
