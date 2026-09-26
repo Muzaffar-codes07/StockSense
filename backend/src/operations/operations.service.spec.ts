@@ -223,6 +223,7 @@ describe('Operations Services', () => {
     beforeEach(() => {
       const tx = {
         adjustment: { updateMany: jest.fn().mockResolvedValue({ count: 1 }), update: jest.fn().mockResolvedValue({ id: 'adj-1', status: DocStatus.DONE }) },
+        adjustmentLine: { update: jest.fn().mockResolvedValue({}) },
       };
       prisma = {
         $transaction: jest.fn((fn: (t: typeof tx) => unknown) => fn(tx)),
@@ -239,6 +240,7 @@ describe('Operations Services', () => {
       };
       stock = {
         stockOnHand: jest.fn().mockResolvedValue(20),
+        lockStock: jest.fn().mockResolvedValue(undefined),
         postMove: jest.fn().mockResolvedValue({ id: 'move-1' }),
       };
       service = new AdjustmentsService(prisma, stock);
@@ -278,7 +280,9 @@ describe('Operations Services', () => {
         status: DocStatus.DRAFT,
         lines: [
           {
+            id: 'line-1',
             productId: 'p1',
+            countedQty: new Prisma.Decimal(17), // 20 on hand at validate -> -3
             diff: new Prisma.Decimal(-3),
           },
         ],
@@ -307,7 +311,9 @@ describe('Operations Services', () => {
         status: DocStatus.DRAFT,
         lines: [
           {
+            id: 'line-1',
             productId: 'p1',
+            countedQty: new Prisma.Decimal(25), // 20 on hand at validate -> +5
             diff: new Prisma.Decimal(5),
           },
         ],

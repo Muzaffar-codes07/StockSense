@@ -71,13 +71,21 @@ export class StockService {
    * a transaction-scoped advisory lock, then reads on-hand through the same
    * transaction so earlier lines of the same document are counted.
    */
+  /**
+   * Serialise every writer of one (product, location) for the rest of the
+   * transaction. Reentrant, so a caller holding it can still postMove().
+   */
+  async lockStock(productId: string, locationId: string, db: Prisma.TransactionClient) {
+    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${productId} || ':' || ${locationId}))`;
+  }
+
   private async assertAvailable(
     db: Prisma.TransactionClient,
     productId: string,
     locationId: string,
     qty: number,
   ) {
-    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${productId} || ':' || ${locationId}))`;
+    await this.lockStock(productId, locationId, db);
     // Full-Decimal comparison — no JS-float round-trip in the availability guard.
     const available = await this.onHandDecimal(productId, locationId, db);
     if (available.lessThan(new Prisma.Decimal(qty))) {

@@ -233,7 +233,16 @@ export class AdjustmentsService {
     return this.prisma.$transaction(async (tx) => {
       await claimForValidation(tx.adjustment, id, 'Adjustment');
       for (const line of adjustment.lines) {
-        const diffNum = line.diff.toNumber();
+        // The count is what's true; measure it against on-hand *now*, under the
+        // per-location lock, not the preview diff stored at create time (#13).
+        await this.stockService.lockStock(line.productId, adjustment.locationId, tx);
+        const recorded = await this.stockService.stockOnHand(line.productId, adjustment.locationId, tx);
+        const diff = line.countedQty.minus(recorded);
+        await tx.adjustmentLine.update({
+          where: { id: line.id },
+          data: { recordedQty: new Prisma.Decimal(recorded), diff },
+        });
+        const diffNum = diff.toNumber();
         if (diffNum > 0) {
           // Found more stock -> Move into location
           await this.stockService.postMove(
