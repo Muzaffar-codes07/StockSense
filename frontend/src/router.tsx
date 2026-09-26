@@ -2,13 +2,7 @@ import { createBrowserRouter } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { Login } from './pages/Login';
 import Dashboard from './pages/Dashboard';
-import {
-  
-  Operations,
-  MoveHistory,
-  Settings,
-  Profile,
-} from './pages/placeholders';
+import { Settings, Profile } from './pages/placeholders';
 import { Operations } from './pages/Operations';
 import { MoveHistory } from './pages/MoveHistory';
 import { ProductsPage } from './features/products/ProductsPage';

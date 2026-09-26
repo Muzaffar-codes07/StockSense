@@ -61,11 +61,11 @@ export default function Dashboard() {
 
       {/* 5 Scope-required KPIs for Role 2 */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        <KpiCard title="Total Products in Stock" value={kpis.totalProducts} />
-        <KpiCard title="Low / Out-of-Stock" value={kpis.lowStockItems} />
-        <KpiCard title="Pending Receipts" value={kpis.pendingReceipts} />
-        <KpiCard title="Pending Deliveries" value={kpis.pendingDeliveries} />
-        <KpiCard title="Internal Transfers" value={kpis.scheduledTransfers} />
+        <KpiCard label="Total Products in Stock" value={kpis.totalProducts} />
+        <KpiCard label="Low / Out-of-Stock" value={kpis.lowStockItems} />
+        <KpiCard label="Pending Receipts" value={kpis.pendingReceipts} />
+        <KpiCard label="Pending Deliveries" value={kpis.pendingDeliveries} />
+        <KpiCard label="Internal Transfers" value={kpis.scheduledTransfers} />
       </div>
     </div>
   );
