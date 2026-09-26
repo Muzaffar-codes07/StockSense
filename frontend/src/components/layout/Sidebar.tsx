@@ -9,6 +9,8 @@ import {
   User,
   LogOut,
 } from 'lucide-react';
+import type { CurrentUser } from '../../lib/auth';
+import { queryClient } from '../../lib/queryClient';
 
 // Left sidebar nav (matches the problem-statement navigation).
 // Role 2 owns styling/polish; Roles 3 & 4 fill the routed pages.
@@ -21,7 +23,11 @@ const links = [
   { to: '/settings', label: 'Settings', icon: Settings },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  user?: CurrentUser;
+}
+
+export function Sidebar({ user }: SidebarProps) {
   return (
     <aside className="flex w-60 flex-col border-r border-slate-200 bg-white">
       <div className="px-5 py-4 text-lg font-bold text-brand-600">StockSense</div>
@@ -45,6 +51,11 @@ export function Sidebar() {
         ))}
       </nav>
       <div className="space-y-1 border-t border-slate-200 px-3 py-3">
+        {user && (
+          <div className="truncate px-3 pb-1 text-xs text-slate-400" title={user.email}>
+            Signed in as <span className="font-medium text-slate-600">{user.name}</span>
+          </div>
+        )}
         <NavLink
           to="/profile"
           className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100"
@@ -55,6 +66,7 @@ export function Sidebar() {
           type="button"
           onClick={() => {
             localStorage.removeItem('accessToken');
+            queryClient.clear();
             window.location.href = '/login';
           }}
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-600 hover:bg-slate-100"
