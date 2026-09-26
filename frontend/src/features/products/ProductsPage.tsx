@@ -5,6 +5,7 @@ import { formatQty } from '@/features/stock/format';
 import { STATUS_OPTIONS, StatusBadge } from '@/features/stock/StatusBadge';
 import type { StockRow, StockStatus } from '@/features/stock/types';
 import { useDebouncedValue } from '@/lib/useDebouncedValue';
+import { CategoriesPanel } from './CategoriesPanel';
 import { useCategories, useProducts } from './hooks';
 
 const PAGE_SIZE = 20;
@@ -96,18 +97,33 @@ export function ProductList() {
 }
 
 export function ProductsPage() {
+  const [tab, setTab] = useState<'products' | 'categories'>('products');
+  const tabClass = (active: boolean) =>
+    `-mb-px border-b-2 px-4 py-2 text-sm font-medium ${
+      active ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+    }`;
   return (
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold text-slate-800">Products</h1>
-        <Link
-          to="/products/new"
-          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-        >
-          New product
-        </Link>
+        {tab === 'products' && (
+          <Link
+            to="/products/new"
+            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
+          >
+            New product
+          </Link>
+        )}
       </div>
-      <ProductList />
+      <div className="mb-4 flex border-b border-slate-200">
+        <button type="button" className={tabClass(tab === 'products')} onClick={() => setTab('products')}>
+          Products
+        </button>
+        <button type="button" className={tabClass(tab === 'categories')} onClick={() => setTab('categories')}>
+          Categories
+        </button>
+      </div>
+      {tab === 'products' ? <ProductList /> : <CategoriesPanel />}
     </div>
   );
 }
