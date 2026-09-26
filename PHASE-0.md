@@ -1,0 +1,76 @@
+# Phase 0 — Sign-off Checklist
+
+Phase 0 = the shared foundation every role builds on. It is **done** when the six
+contracts below are locked *and* the two human gates at the bottom are signed off.
+Don't start feature work on `main` until both gates are checked.
+
+> Status legend: ✅ done & verified · ⚠️ needs a human · ⬜ not started
+
+---
+
+## The six contracts
+
+| # | Contract | Where it lives | Status |
+|---|----------|----------------|--------|
+| 1 | **DB schema** — every entity, frozen as a committed migration | `backend/prisma/schema.prisma`, `backend/prisma/migrations/` | ✅ validates, 22 FKs, migration committed |
+| 2 | **Stock Ledger** — `postMove()` + derived `stockOnHand()` / `totalStock()` | `backend/src/stock/stock.service.ts` | ✅ implemented + 7 unit tests passing |
+| 3 | **Doc status enum** — `Draft → Waiting → Ready → Done → Canceled` | `schema.prisma` (`DocStatus`) | ✅ |
+| 4 | **API + validation + list/filter convention** | `main.ts` (ValidationPipe), `common/http-exception.filter.ts`, `common/pagination.dto.ts` | ✅ |
+| 5 | **Auth token + protected-route convention** | `auth/` (JWT), `auth/jwt-auth.guard.ts`, `common/current-user.decorator.ts` | ✅ signup/login work; OTP reset stubbed for Role 1 |
+| 6 | **UI shell + shared components** | `frontend/src/components/layout/`, `frontend/src/components/ui/` | ✅ shell + Table/Modal/FormField/FilterBar/KpiCard |
+
+---
+
+## Verified so far (automated)
+
+- [x] `npx prisma validate` passes
+- [x] `npx prisma generate` succeeds
+- [x] Init migration committed (`backend/prisma/migrations/*_init/`)
+- [x] Backend builds — `cd backend && npm run build` → `dist/main.js`
+- [x] Frontend builds — `cd frontend && npm run build`
+- [x] Ledger tests pass — `cd backend && npm test` (7/7)
+- [x] API boots and `GET /health` returns 200 (graceful `db:false` when DB is down)
+
+---
+
+## ⚠️ Gate A — Live database run (needs a machine with Docker or local Postgres)
+
+Nobody has run the schema against a real database yet. Do this once:
+
+```bash
+cp .env.example .env
+docker compose up -d db
+cd backend && cp .env.example .env && npm install
+npx prisma migrate deploy      # applies the committed migration
+npm run prisma:seed            # demo data + admin@stocksense.dev / password123
+npm run start:dev
+# open http://localhost:3000/health  ->  { "status": "ok", "db": true }
+```
+
+- [ ] `migrate deploy` applies cleanly
+- [ ] `prisma:seed` runs without error
+- [ ] `GET /health` shows `"db": true`
+- [ ] Signed off by: __________________
+
+## ⚠️ Gate B — Team schema review (~15 min, all members)
+
+Database design is the #1-scored criterion — it must be a *team* decision, not one person's.
+Everyone reads `backend/prisma/schema.prisma` and agrees on:
+
+- [ ] Entity coverage matches the problem statement (products, receipts, deliveries, transfers, adjustments, ledger)
+- [ ] The ledger model (derived stock, no stored on-hand) is understood by all
+- [ ] `Decimal(18,3)` quantities and `Location` relations accepted
+- [ ] Naming conventions agreed (so all roles are consistent)
+- [ ] Reviewed by: __________ / __________ / __________ / __________
+
+---
+
+## Once both gates are checked
+
+Phase 0 is closed. Fan out onto `main` (single-branch, everyone commits — keep commits
+small and pull often). Ownership map is in [`docs/README.md`](./docs/README.md):
+
+- **Role 1** — auth/OTP, warehouses, ledger hardening
+- **Role 2** — dashboard, design system, shared components
+- **Role 3** — products, stock views, alerts
+- **Role 4** — receipts, deliveries, transfers, adjustments, move history
