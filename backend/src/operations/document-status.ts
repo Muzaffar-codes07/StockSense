@@ -25,6 +25,23 @@ export async function claimForValidation(docs: ClaimableDelegate, id: string, la
   }
 }
 
+/**
+ * Cancel only a document that is still open, in one conditional UPDATE. If a
+ * validate() is mid-flight, the row lock makes this wait; it then sees DONE,
+ * matches 0 rows and refuses, so a document is never CANCELED with stock
+ * already posted (audit §8.11). Validated documents are corrected with an
+ * inventory adjustment, not canceled.
+ */
+export async function cancelIfOpen(docs: ClaimableDelegate, id: string, label: string) {
+  const canceled = await docs.updateMany({
+    where: { id, status: { notIn: [DocStatus.DONE, DocStatus.CANCELED] } },
+    data: { status: DocStatus.CANCELED },
+  });
+  if (canceled.count === 0) {
+    throw new BadRequestException(`${label} is already validated or canceled`);
+  }
+}
+
 /** DONE is only reachable through validate(), which posts the ledger moves. */
 export function assertNotMarkingDone(status: DocStatus | undefined, label: string) {
   if (status === DocStatus.DONE) {

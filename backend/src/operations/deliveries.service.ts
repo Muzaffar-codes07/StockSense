@@ -13,7 +13,7 @@ import {
   UpdateDeliveryDto,
   ValidateDeliveryDto,
 } from './dto/delivery.dto';
-import { assertNotMarkingDone, claimForValidation } from './document-status';
+import { assertNotMarkingDone, cancelIfOpen, claimForValidation } from './document-status';
 
 @Injectable()
 export class DeliveriesService {
@@ -240,17 +240,7 @@ export class DeliveriesService {
     if (delivery.status === DocStatus.DONE) {
       throw new BadRequestException('Cannot cancel a validated delivery');
     }
-    return this.prisma.delivery.update({
-      where: { id },
-      data: { status: DocStatus.CANCELED },
-      include: {
-        partner: true,
-        lines: {
-          include: {
-            product: true,
-          },
-        },
-      },
-    });
+    await cancelIfOpen(this.prisma.delivery, id, 'Delivery');
+    return this.findOne(id);
   }
 }

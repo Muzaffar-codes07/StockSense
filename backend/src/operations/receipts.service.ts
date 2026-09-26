@@ -13,7 +13,7 @@ import {
   UpdateReceiptDto,
   ValidateReceiptDto,
 } from './dto/receipt.dto';
-import { assertNotMarkingDone, claimForValidation } from './document-status';
+import { assertNotMarkingDone, cancelIfOpen, claimForValidation } from './document-status';
 
 @Injectable()
 export class ReceiptsService {
@@ -240,17 +240,7 @@ export class ReceiptsService {
     if (receipt.status === DocStatus.DONE) {
       throw new BadRequestException('Cannot cancel a validated receipt');
     }
-    return this.prisma.receipt.update({
-      where: { id },
-      data: { status: DocStatus.CANCELED },
-      include: {
-        partner: true,
-        lines: {
-          include: {
-            product: true,
-          },
-        },
-      },
-    });
+    await cancelIfOpen(this.prisma.receipt, id, 'Receipt');
+    return this.findOne(id);
   }
 }

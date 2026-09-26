@@ -12,7 +12,7 @@ import {
   OperationQueryDto,
   UpdateTransferDto,
 } from './dto/transfer.dto';
-import { assertNotMarkingDone, claimForValidation } from './document-status';
+import { assertNotMarkingDone, cancelIfOpen, claimForValidation } from './document-status';
 
 @Injectable()
 export class TransfersService {
@@ -260,18 +260,7 @@ export class TransfersService {
     if (transfer.status === DocStatus.DONE) {
       throw new BadRequestException('Cannot cancel a validated transfer');
     }
-    return this.prisma.transfer.update({
-      where: { id },
-      data: { status: DocStatus.CANCELED },
-      include: {
-        lines: {
-          include: {
-            product: true,
-            fromLocation: true,
-            toLocation: true,
-          },
-        },
-      },
-    });
+    await cancelIfOpen(this.prisma.transfer, id, 'Transfer');
+    return this.findOne(id);
   }
 }

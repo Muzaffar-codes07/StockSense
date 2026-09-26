@@ -12,7 +12,7 @@ import {
   OperationQueryDto,
   UpdateAdjustmentDto,
 } from './dto/adjustment.dto';
-import { assertNotMarkingDone, claimForValidation } from './document-status';
+import { assertNotMarkingDone, cancelIfOpen, claimForValidation } from './document-status';
 
 @Injectable()
 export class AdjustmentsService {
@@ -297,17 +297,7 @@ export class AdjustmentsService {
     if (adjustment.status === DocStatus.DONE) {
       throw new BadRequestException('Cannot cancel a validated adjustment');
     }
-    return this.prisma.adjustment.update({
-      where: { id },
-      data: { status: DocStatus.CANCELED },
-      include: {
-        location: true,
-        lines: {
-          include: {
-            product: true,
-          },
-        },
-      },
-    });
+    await cancelIfOpen(this.prisma.adjustment, id, 'Adjustment');
+    return this.findOne(id);
   }
 }

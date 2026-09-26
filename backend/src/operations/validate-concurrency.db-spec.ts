@@ -150,4 +150,52 @@ describe('operation documents post exactly once (live DB)', () => {
       );
     });
   });
+
+  describe('validate racing cancel: never CANCELED with stock posted (audit §8.11)', () => {
+    const ROUNDS = 4;
+    const consistent = async (docId: string, status: () => Promise<DocStatus | undefined>, lines: number) => {
+      const [st, moves] = [await status(), await movesFor(docId)];
+      expect({ docId, st, moves }).toEqual({ docId, st, moves: st === DocStatus.DONE ? lines : 0 });
+    };
+
+    it('receipt', async () => {
+      for (let i = 0; i < ROUNDS; i++) {
+        const r = await receipts.create({ lines: [{ productId: steel, qty: 1 }] });
+        await Promise.allSettled([receipts.validate(r.id, { locationId: shelf }), receipts.cancel(r.id)]);
+        await consistent(r.id, async () => (await prisma.receipt.findUnique({ where: { id: r.id } }))?.status, 1);
+      }
+    });
+
+    it('delivery', async () => {
+      for (let i = 0; i < ROUNDS; i++) {
+        const d = await deliveries.create({ lines: [{ productId: steel, qty: 1 }] });
+        await Promise.allSettled([deliveries.validate(d.id, { locationId: store }), deliveries.cancel(d.id)]);
+        await consistent(d.id, async () => (await prisma.delivery.findUnique({ where: { id: d.id } }))?.status, 1);
+      }
+    });
+
+    it('transfer', async () => {
+      for (let i = 0; i < ROUNDS; i++) {
+        const t = await transfers.create({ lines: [{ productId: steel, qty: 1, fromLocationId: store, toLocationId: shelf }] });
+        await Promise.allSettled([transfers.validate(t.id), transfers.cancel(t.id)]);
+        await consistent(t.id, async () => (await prisma.transfer.findUnique({ where: { id: t.id } }))?.status, 1);
+      }
+    });
+
+    it('adjustment', async () => {
+      for (let i = 0; i < ROUNDS; i++) {
+        const onHand = await stock.stockOnHand(steel, store);
+        const a = await adjustments.create({ locationId: store, lines: [{ productId: steel, countedQty: onHand + 1 }] });
+        await Promise.allSettled([adjustments.validate(a.id), adjustments.cancel(a.id)]);
+        await consistent(a.id, async () => (await prisma.adjustment.findUnique({ where: { id: a.id } }))?.status, 1);
+      }
+    });
+
+    it('a validated document cannot be canceled (correct it with an adjustment instead)', async () => {
+      const r = await receipts.create({ lines: [{ productId: steel, qty: 1 }] });
+      await receipts.validate(r.id, { locationId: shelf });
+      await expect(receipts.cancel(r.id)).rejects.toBeInstanceOf(BadRequestException);
+      expect((await prisma.receipt.findUnique({ where: { id: r.id } }))?.status).toBe(DocStatus.DONE);
+    });
+  });
 });
