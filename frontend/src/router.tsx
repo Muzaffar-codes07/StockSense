@@ -1,8 +1,11 @@
 import { createBrowserRouter } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { Login } from './pages/Login';
+import Dashboard from './pages/Dashboard';
 import {
-  Dashboard,
+  
+  Operations,
+  MoveHistory,
   Settings,
   Profile,
 } from './pages/placeholders';
