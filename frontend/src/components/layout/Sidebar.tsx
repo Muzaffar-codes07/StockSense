@@ -2,6 +2,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
   Package,
+  Boxes,
   ArrowLeftRight,
   History,
   Settings,
@@ -14,6 +15,7 @@ import {
 const links = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/products', label: 'Products', icon: Package },
+  { to: '/stock', label: 'Stock', icon: Boxes },
   { to: '/operations', label: 'Operations', icon: ArrowLeftRight },
   { to: '/move-history', label: 'Move History', icon: History },
   { to: '/settings', label: 'Settings', icon: Settings },
