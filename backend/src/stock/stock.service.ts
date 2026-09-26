@@ -10,6 +10,7 @@ export interface PostMoveInput {
   toLocationId?: string | null;
   docType?: string;
   docId?: string;
+  createdById?: string | null; // who posted the move (audit trail)
 }
 
 /**
@@ -43,12 +44,13 @@ export class StockService {
     return db.stockMove.create({
       data: {
         productId: input.productId,
-        qty: input.qty,
+        qty: new Prisma.Decimal(input.qty),
         moveType: input.moveType,
         fromLocationId: input.fromLocationId ?? null,
         toLocationId: input.toLocationId ?? null,
         docType: input.docType,
         docId: input.docId,
+        createdById: input.createdById ?? null,
       },
     });
   }
@@ -65,7 +67,7 @@ export class StockService {
         where: { productId, fromLocationId: locationId },
       }),
     ]);
-    return (inAgg._sum.qty ?? 0) - (outAgg._sum.qty ?? 0);
+    return this.net(inAgg._sum.qty, outAgg._sum.qty);
   }
 
   /** Total on-hand of a product across all locations. */
@@ -80,6 +82,15 @@ export class StockService {
         where: { productId, fromLocationId: { not: null } },
       }),
     ]);
-    return (inAgg._sum.qty ?? 0) - (outAgg._sum.qty ?? 0);
+    return this.net(inAgg._sum.qty, outAgg._sum.qty);
+  }
+
+  /** Exact Decimal subtraction of summed inputs/outputs, returned as a number. */
+  private net(
+    inSum: Prisma.Decimal | null,
+    outSum: Prisma.Decimal | null,
+  ): number {
+    const zero = new Prisma.Decimal(0);
+    return (inSum ?? zero).minus(outSum ?? zero).toNumber();
   }
 }

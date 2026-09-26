@@ -11,6 +11,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "ts-node prisma/seed.ts",
+    "test": "jest",
     "lint": "eslint \"src/**/*.ts\" --fix"
   },
   "prisma": {
@@ -31,8 +32,11 @@
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.5",
+    "@types/jest": "^29.5.13",
     "@types/node": "^22.7.4",
+    "jest": "^29.7.0",
     "prisma": "^5.20.0",
+    "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.2"
   }

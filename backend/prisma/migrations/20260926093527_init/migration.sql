@@ -69,6 +69,7 @@ CREATE TABLE "Product" (
     "categoryId" TEXT,
     "uom" TEXT NOT NULL DEFAULT 'unit',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Product_pkey" PRIMARY KEY ("id")
 );
@@ -77,8 +78,8 @@ CREATE TABLE "Product" (
 CREATE TABLE "ReorderRule" (
     "id" TEXT NOT NULL,
     "productId" TEXT NOT NULL,
-    "minQty" DOUBLE PRECISION NOT NULL DEFAULT 0,
-    "maxQty" DOUBLE PRECISION,
+    "minQty" DECIMAL(18,3) NOT NULL DEFAULT 0,
+    "maxQty" DECIMAL(18,3),
 
     CONSTRAINT "ReorderRule_pkey" PRIMARY KEY ("id")
 );
@@ -98,10 +99,11 @@ CREATE TABLE "StockMove" (
     "productId" TEXT NOT NULL,
     "fromLocationId" TEXT,
     "toLocationId" TEXT,
-    "qty" DOUBLE PRECISION NOT NULL,
+    "qty" DECIMAL(18,3) NOT NULL,
     "moveType" "MoveType" NOT NULL,
     "docType" TEXT,
     "docId" TEXT,
+    "createdById" TEXT,
     "doneAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -124,7 +126,7 @@ CREATE TABLE "ReceiptLine" (
     "id" TEXT NOT NULL,
     "receiptId" TEXT NOT NULL,
     "productId" TEXT NOT NULL,
-    "qty" DOUBLE PRECISION NOT NULL,
+    "qty" DECIMAL(18,3) NOT NULL,
 
     CONSTRAINT "ReceiptLine_pkey" PRIMARY KEY ("id")
 );
@@ -145,7 +147,7 @@ CREATE TABLE "DeliveryLine" (
     "id" TEXT NOT NULL,
     "deliveryId" TEXT NOT NULL,
     "productId" TEXT NOT NULL,
-    "qty" DOUBLE PRECISION NOT NULL,
+    "qty" DECIMAL(18,3) NOT NULL,
 
     CONSTRAINT "DeliveryLine_pkey" PRIMARY KEY ("id")
 );
@@ -165,7 +167,7 @@ CREATE TABLE "TransferLine" (
     "id" TEXT NOT NULL,
     "transferId" TEXT NOT NULL,
     "productId" TEXT NOT NULL,
-    "qty" DOUBLE PRECISION NOT NULL,
+    "qty" DECIMAL(18,3) NOT NULL,
     "fromLocationId" TEXT NOT NULL,
     "toLocationId" TEXT NOT NULL,
 
@@ -188,9 +190,9 @@ CREATE TABLE "AdjustmentLine" (
     "id" TEXT NOT NULL,
     "adjustmentId" TEXT NOT NULL,
     "productId" TEXT NOT NULL,
-    "countedQty" DOUBLE PRECISION NOT NULL,
-    "recordedQty" DOUBLE PRECISION NOT NULL,
-    "diff" DOUBLE PRECISION NOT NULL,
+    "countedQty" DECIMAL(18,3) NOT NULL,
+    "recordedQty" DECIMAL(18,3) NOT NULL,
+    "diff" DECIMAL(18,3) NOT NULL,
 
     CONSTRAINT "AdjustmentLine_pkey" PRIMARY KEY ("id")
 );
@@ -253,6 +255,9 @@ ALTER TABLE "StockMove" ADD CONSTRAINT "StockMove_fromLocationId_fkey" FOREIGN K
 ALTER TABLE "StockMove" ADD CONSTRAINT "StockMove_toLocationId_fkey" FOREIGN KEY ("toLocationId") REFERENCES "Location"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "StockMove" ADD CONSTRAINT "StockMove_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "Receipt" ADD CONSTRAINT "Receipt_partnerId_fkey" FOREIGN KEY ("partnerId") REFERENCES "Partner"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -275,6 +280,15 @@ ALTER TABLE "TransferLine" ADD CONSTRAINT "TransferLine_transferId_fkey" FOREIGN
 
 -- AddForeignKey
 ALTER TABLE "TransferLine" ADD CONSTRAINT "TransferLine_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TransferLine" ADD CONSTRAINT "TransferLine_fromLocationId_fkey" FOREIGN KEY ("fromLocationId") REFERENCES "Location"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "TransferLine" ADD CONSTRAINT "TransferLine_toLocationId_fkey" FOREIGN KEY ("toLocationId") REFERENCES "Location"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "Adjustment" ADD CONSTRAINT "Adjustment_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "Location"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "AdjustmentLine" ADD CONSTRAINT "AdjustmentLine_adjustmentId_fkey" FOREIGN KEY ("adjustmentId") REFERENCES "Adjustment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
