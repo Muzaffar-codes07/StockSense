@@ -93,60 +93,65 @@ export function Operations() {
     queryClient.invalidateQueries({ queryKey: ['operations'] });
   };
 
+  // Every row action goes through here, so a refused action (not enough stock,
+  // already validated, missing role) is shown instead of failing silently.
+  const [actionError, setActionError] = useState<string | null>(null);
+  const act = async (action: () => Promise<unknown>) => {
+    setActionError(null);
+    try {
+      await action();
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Action failed');
+    } finally {
+      refreshCurrent();
+    }
+  };
+
   // Receipt Actions
   const handleMarkReceiptReady = async (id: string) => {
-    await updateReceiptStatus(id, 'READY');
-    refreshCurrent();
+    await act(() => updateReceiptStatus(id, 'READY'));
   };
 
   const handleCancelReceipt = async (id: string) => {
     if (confirm('Are you sure you want to cancel this receipt?')) {
-      await cancelReceipt(id);
-      refreshCurrent();
+      await act(() => cancelReceipt(id));
     }
   };
 
   // Delivery Actions
   const handleMarkDeliveryReady = async (id: string) => {
-    await updateDeliveryStatus(id, 'READY');
-    refreshCurrent();
+    await act(() => updateDeliveryStatus(id, 'READY'));
   };
 
   const handleCancelDelivery = async (id: string) => {
     if (confirm('Are you sure you want to cancel this delivery?')) {
-      await cancelDelivery(id);
-      refreshCurrent();
+      await act(() => cancelDelivery(id));
     }
   };
 
   // Transfer Actions
   const handleMarkTransferReady = async (id: string) => {
-    await updateTransferStatus(id, 'READY');
-    refreshCurrent();
+    await act(() => updateTransferStatus(id, 'READY'));
   };
 
   const handleValidateTransfer = async (id: string) => {
-    await validateTransfer(id);
-    refreshCurrent();
+    await act(() => validateTransfer(id));
   };
 
   const handleCancelTransfer = async (id: string) => {
     if (confirm('Are you sure you want to cancel this transfer?')) {
-      await cancelTransfer(id);
-      refreshCurrent();
+      await act(() => cancelTransfer(id));
     }
   };
 
   // Adjustment Actions
   const handleValidateAdjustment = async (id: string) => {
-    await validateAdjustment(id);
-    refreshCurrent();
+    await act(() => validateAdjustment(id));
   };
 
   const handleCancelAdjustment = async (id: string) => {
     if (confirm('Are you sure you want to cancel this adjustment?')) {
-      await cancelAdjustment(id);
-      refreshCurrent();
+      await act(() => cancelAdjustment(id));
     }
   };
 
@@ -586,6 +591,18 @@ export function Operations() {
           <option value="CANCELED">Canceled</option>
         </select>
       </FilterBar>
+
+      {actionError && (
+        <div
+          role="alert"
+          className="mb-4 flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+        >
+          <span>{actionError}</span>
+          <button type="button" className="font-medium underline" onClick={() => setActionError(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Tables based on active tab */}
       {activeTab === 'receipts' && (
