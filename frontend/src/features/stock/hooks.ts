@@ -1,4 +1,4 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { stockApi } from './api';
 import type { StockFilters } from './types';
 
@@ -34,3 +34,14 @@ export const useProductLocations = (id: string | undefined) =>
     queryFn: () => stockApi.productLocations(id as string),
     enabled: Boolean(id),
   });
+
+export const useAdjustStock = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: stockApi.adjustStock,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: stockKeys.all });
+      qc.invalidateQueries({ queryKey: ['products'] });
+    },
+  });
+};
