@@ -190,6 +190,8 @@ model Receipt {
   createdAt   DateTime      @default(now())
   validatedAt DateTime?
   lines       ReceiptLine[]
+
+  @@index([partnerId])
 }
 
 model ReceiptLine {
@@ -199,6 +201,9 @@ model ReceiptLine {
   product   Product @relation(fields: [productId], references: [id])
   productId String
   qty       Decimal @db.Decimal(18, 3)
+
+  @@index([receiptId])
+  @@index([productId])
 }
 
 model Delivery {
@@ -209,6 +214,8 @@ model Delivery {
   createdAt   DateTime       @default(now())
   validatedAt DateTime?
   lines       DeliveryLine[]
+
+  @@index([partnerId])
 }
 
 model DeliveryLine {
@@ -218,6 +225,10 @@ model DeliveryLine {
   product    Product  @relation(fields: [productId], references: [id])
   productId  String
   qty        Decimal  @db.Decimal(18, 3)
+
+  // productId is scanned by the reserved / free-to-use CTE on every stock read.
+  @@index([deliveryId])
+  @@index([productId])
 }
 
 model Transfer {
@@ -240,6 +251,11 @@ model TransferLine {
   fromLocationId String
   toLocation     Location @relation("TransferTo", fields: [toLocationId], references: [id])
   toLocationId   String
+
+  @@index([transferId])
+  @@index([productId])
+  @@index([fromLocationId])
+  @@index([toLocationId])
 }
 
 model Adjustment {
@@ -250,6 +266,8 @@ model Adjustment {
   createdAt   DateTime         @default(now())
   validatedAt DateTime?
   lines       AdjustmentLine[]
+
+  @@index([locationId])
 }
 
 model AdjustmentLine {
@@ -261,4 +279,7 @@ model AdjustmentLine {
   countedQty   Decimal    @db.Decimal(18, 3)
   recordedQty  Decimal    @db.Decimal(18, 3)
   diff         Decimal    @db.Decimal(18, 3) // countedQty - recordedQty (posted to the ledger)
+
+  @@index([adjustmentId])
+  @@index([productId])
 }

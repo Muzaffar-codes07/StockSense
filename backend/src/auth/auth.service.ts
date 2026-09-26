@@ -81,11 +81,13 @@ export class AuthService {
         expiresAt: new Date(Date.now() + OTP_TTL_MS),
       },
     });
-    this.logger.log(`Password reset code for ${email}: ${code} (valid 10m)`);
-
-    return process.env.NODE_ENV === 'production'
-      ? generic
-      : { ...generic, devOtp: code };
+    // Never log the plaintext code in production (secret in logs). In real
+    // deployment this is where an email/SMS send would go instead.
+    if (process.env.NODE_ENV !== 'production') {
+      this.logger.log(`Password reset code for ${email}: ${code} (valid 10m)`);
+      return { ...generic, devOtp: code };
+    }
+    return generic;
   }
 
   // Verify the latest active OTP and set the new password. Generic errors and

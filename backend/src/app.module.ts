@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
 import { StockModule } from './stock/stock.module';
 import { AuthModule } from './auth/auth.module';
@@ -18,6 +19,9 @@ import { OperationsModule } from './operations/operations.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    // Rate-limit config (in-memory). ThrottlerGuard is applied per-controller
+    // (auth) rather than globally, so only credential/OTP routes are limited.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }]),
     PrismaModule,
     StockModule,
     AuthModule,
