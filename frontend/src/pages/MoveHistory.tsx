@@ -3,18 +3,21 @@ import { useQuery } from '@tanstack/react-query';
 import { getMoveHistory, MoveType, StockMove } from '../lib/operations';
 import { Table, Column } from '../components/ui/Table';
 import { FilterBar } from '../components/ui/FilterBar';
+import { Pager } from '../components/ui/Pager';
 import { ArrowRight, History } from 'lucide-react';
 
 export function MoveHistory() {
   const [search, setSearch] = useState('');
   const [moveTypeFilter, setMoveTypeFilter] = useState<MoveType | ''>('');
+  const [page, setPage] = useState(1);
 
   const { data: movesData, isLoading } = useQuery({
-    queryKey: ['operations', 'moves', moveTypeFilter, search],
+    queryKey: ['operations', 'moves', moveTypeFilter, search, page],
     queryFn: () =>
       getMoveHistory({
         moveType: moveTypeFilter || undefined,
         search: search || undefined,
+        page,
         pageSize: 50,
       }),
   });
@@ -138,10 +141,19 @@ export function MoveHistory() {
         </div>
       </div>
 
-      <FilterBar search={search} onSearch={setSearch}>
+      <FilterBar
+        search={search}
+        onSearch={(v) => {
+          setSearch(v);
+          setPage(1);
+        }}
+      >
         <select
           value={moveTypeFilter}
-          onChange={(e) => setMoveTypeFilter(e.target.value as MoveType | '')}
+          onChange={(e) => {
+            setMoveTypeFilter(e.target.value as MoveType | '');
+            setPage(1);
+          }}
           className="rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white focus:border-indigo-500 focus:outline-none"
         >
           <option value="">All Movement Types</option>
@@ -157,6 +169,7 @@ export function MoveHistory() {
         rows={movesData?.data ?? []}
         empty={isLoading ? 'Loading stock ledger movements...' : 'No ledger movements found'}
       />
+      <Pager page={page} totalPages={movesData?.totalPages ?? 1} onPage={setPage} />
     </div>
   );
 }
