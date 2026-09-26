@@ -33,8 +33,12 @@ const card = 'rounded-xl border border-slate-200 bg-white p-6';
 export function ProductFormPage() {
   const { id } = useParams();
   const product = useProduct(id);
+  // The category <select> is uncontrolled: react-hook-form sets its value once, on
+  // mount, so its options must already exist or it falls back to "No category".
+  const categories = useCategories();
 
-  if (id && product.isLoading) return <p className="text-slate-400">Loading…</p>;
+  if ((id && product.isLoading) || categories.isLoading)
+    return <p className="text-slate-400">Loading…</p>;
   if (id && product.error)
     return <p className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{product.error.message}</p>;
 
