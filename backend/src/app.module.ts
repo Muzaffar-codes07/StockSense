@@ -10,9 +10,11 @@ import { CategoriesModule } from './categories/categories.module';
 import { HealthController } from './health/health.controller';
 import { MetaController } from './meta/meta.controller';
 
+import { OperationsModule } from './operations/operations.module';
+
 // Root module. Feature modules are added here as each role builds them:
 //   Role 3 -> ProductsModule, CategoriesModule
-//   Role 4 -> ReceiptsModule, DeliveriesModule, TransfersModule, AdjustmentsModule
+//   Role 4 -> OperationsModule
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -23,6 +25,7 @@ import { MetaController } from './meta/meta.controller';
     InventoryModule,
     ProductsModule,
     CategoriesModule,
+    OperationsModule,
   ],
   controllers: [HealthController, MetaController],
 })
