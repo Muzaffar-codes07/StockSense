@@ -27,9 +27,8 @@ export class CreateDeliveryDto {
   @IsUUID()
   partnerId?: string;
 
-  @IsOptional()
-  @IsUUID()
-  sourceLocationId?: string;
+  // No create-time location: Receipt/Delivery have no location column, so the
+  // location is chosen at validate (the moment stock actually moves). #14
 
   @IsArray()
   @ArrayMinSize(1)

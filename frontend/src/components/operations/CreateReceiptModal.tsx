@@ -3,10 +3,8 @@ import { Modal } from '../ui/Modal';
 import {
   createReceipt,
   getPartners,
-  getLocations,
   getProductsList,
   Partner,
-  LocationItem,
   ProductItem,
 } from '../../lib/operations';
 import { Plus, Trash2 } from 'lucide-react';
@@ -24,10 +22,8 @@ interface LineState {
 
 export function CreateReceiptModal({ open, onClose, onSuccess }: Props) {
   const [partners, setPartners] = useState<Partner[]>([]);
-  const [locations, setLocations] = useState<LocationItem[]>([]);
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [partnerId, setPartnerId] = useState('');
-  const [destinationLocationId, setDestinationLocationId] = useState('');
   const [lines, setLines] = useState<LineState[]>([{ productId: '', qty: 1 }]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,17 +32,13 @@ export function CreateReceiptModal({ open, onClose, onSuccess }: Props) {
     if (open) {
       setError(null);
       setPartnerId('');
-      setDestinationLocationId('');
       setLines([{ productId: '', qty: 1 }]);
       Promise.all([
         getPartners('SUPPLIER').catch(() => []),
-        getLocations().catch(() => []),
         getProductsList().catch(() => []),
-      ]).then(([pts, locs, prods]) => {
+      ]).then(([pts, prods]) => {
         setPartners(pts);
-        setLocations(locs);
         setProducts(prods);
-        if (locs.length > 0) setDestinationLocationId(locs[0].id);
         if (prods.length > 0) setLines([{ productId: prods[0].id, qty: 1 }]);
       });
     }
@@ -82,7 +74,6 @@ export function CreateReceiptModal({ open, onClose, onSuccess }: Props) {
     try {
       await createReceipt({
         partnerId: partnerId || undefined,
-        destinationLocationId: destinationLocationId || undefined,
         lines: validLines.map((l) => ({ productId: l.productId, qty: Number(l.qty) })),
       });
       onSuccess();
@@ -122,24 +113,9 @@ export function CreateReceiptModal({ open, onClose, onSuccess }: Props) {
             </select>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-              Destination Location
-            </label>
-            <select
-              value={destinationLocationId}
-              onChange={(e) => setDestinationLocationId(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none bg-white"
-            >
-              <option value="">Select Location</option>
-              {locations.map((loc) => (
-                <option key={loc.id} value={loc.id}>
-                  {loc.warehouse?.name ? `${loc.warehouse.name} - ` : ''}
-                  {loc.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <p className="self-end text-xs text-slate-500">
+            You choose the location to receive into when you validate.
+          </p>
         </div>
 
         <div>

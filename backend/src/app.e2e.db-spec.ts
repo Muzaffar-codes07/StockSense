@@ -371,6 +371,17 @@ describe('HTTP API (live DB)', () => {
         .expect(404);
     });
 
+    it('rejects a create-time location it would otherwise ignore (#14); validate picks the location', async () => {
+      const r = await authed('post', '/operations/receipts')
+        .send({ destinationLocationId: store, lines: [{ productId, qty: 1 }] })
+        .expect(400);
+      expect(String(r.body.message)).toMatch(/destinationLocationId should not exist/);
+      const d = await authed('post', '/operations/deliveries')
+        .send({ sourceLocationId: store, lines: [{ productId, qty: 1 }] })
+        .expect(400);
+      expect(String(d.body.message)).toMatch(/sourceLocationId should not exist/);
+    });
+
     it('a product in a missing category is 400', async () => {
       const res = await authed('post', '/products')
         .send({ name: `${tag} Orphan`, sku: `${tag}-ORPH`, uom: 'unit', unitCost: 1, categoryId: missing })

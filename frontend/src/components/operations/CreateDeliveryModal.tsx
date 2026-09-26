@@ -3,10 +3,8 @@ import { Modal } from '../ui/Modal';
 import {
   createDelivery,
   getPartners,
-  getLocations,
   getProductsList,
   Partner,
-  LocationItem,
   ProductItem,
 } from '../../lib/operations';
 import { Plus, Trash2 } from 'lucide-react';
@@ -24,10 +22,8 @@ interface LineState {
 
 export function CreateDeliveryModal({ open, onClose, onSuccess }: Props) {
   const [partners, setPartners] = useState<Partner[]>([]);
-  const [locations, setLocations] = useState<LocationItem[]>([]);
   const [products, setProducts] = useState<ProductItem[]>([]);
   const [partnerId, setPartnerId] = useState('');
-  const [sourceLocationId, setSourceLocationId] = useState('');
   const [lines, setLines] = useState<LineState[]>([{ productId: '', qty: 1 }]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,17 +32,13 @@ export function CreateDeliveryModal({ open, onClose, onSuccess }: Props) {
     if (open) {
       setError(null);
       setPartnerId('');
-      setSourceLocationId('');
       setLines([{ productId: '', qty: 1 }]);
       Promise.all([
         getPartners('CUSTOMER').catch(() => []),
-        getLocations().catch(() => []),
         getProductsList().catch(() => []),
-      ]).then(([pts, locs, prods]) => {
+      ]).then(([pts, prods]) => {
         setPartners(pts);
-        setLocations(locs);
         setProducts(prods);
-        if (locs.length > 0) setSourceLocationId(locs[0].id);
         if (prods.length > 0) setLines([{ productId: prods[0].id, qty: 1 }]);
       });
     }
@@ -82,7 +74,6 @@ export function CreateDeliveryModal({ open, onClose, onSuccess }: Props) {
     try {
       await createDelivery({
         partnerId: partnerId || undefined,
-        sourceLocationId: sourceLocationId || undefined,
         lines: validLines.map((l) => ({ productId: l.productId, qty: Number(l.qty) })),
       });
       onSuccess();
@@ -122,24 +113,9 @@ export function CreateDeliveryModal({ open, onClose, onSuccess }: Props) {
             </select>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-              Source Location (Pick from)
-            </label>
-            <select
-              value={sourceLocationId}
-              onChange={(e) => setSourceLocationId(e.target.value)}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none bg-white"
-            >
-              <option value="">Select Source Location</option>
-              {locations.map((loc) => (
-                <option key={loc.id} value={loc.id}>
-                  {loc.warehouse?.name ? `${loc.warehouse.name} - ` : ''}
-                  {loc.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <p className="self-end text-xs text-slate-500">
+            You choose the location to ship from when you validate.
+          </p>
         </div>
 
         <div>

@@ -169,7 +169,6 @@ export async function getReceipt(id: string): Promise<Receipt> {
 
 export async function createReceipt(payload: {
   partnerId?: string;
-  destinationLocationId?: string;
   lines: { productId: string; qty: number }[];
 }): Promise<Receipt> {
   const res = await api.post('/operations/receipts', payload);
@@ -206,7 +205,6 @@ export async function getDelivery(id: string): Promise<Delivery> {
 
 export async function createDelivery(payload: {
   partnerId?: string;
-  sourceLocationId?: string;
   lines: { productId: string; qty: number }[];
 }): Promise<Delivery> {
   const res = await api.post('/operations/deliveries', payload);
