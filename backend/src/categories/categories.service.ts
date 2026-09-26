@@ -5,6 +5,12 @@ import { CategoryDto } from './dto/category.dto';
 
 const NAME_TAKEN = 'A category with this name already exists';
 
+// Archived products are hidden everywhere, so they neither show in the count nor
+// block deletion (Product.categoryId is ON DELETE SET NULL).
+const ACTIVE_PRODUCT_COUNT = {
+  _count: { select: { products: { where: { isActive: true } } } },
+} as const;
+
 @Injectable()
 export class CategoriesService {
   constructor(private readonly prisma: PrismaService) {}
@@ -12,7 +18,7 @@ export class CategoriesService {
   async list() {
     const categories = await this.prisma.category.findMany({
       orderBy: { name: 'asc' },
-      include: { _count: { select: { products: true } } },
+      include: ACTIVE_PRODUCT_COUNT,
     });
     return categories.map((c) => ({ id: c.id, name: c.name, productCount: c._count.products }));
   }
@@ -48,7 +54,7 @@ export class CategoriesService {
   private async find(id: string) {
     const category = await this.prisma.category.findUnique({
       where: { id },
-      include: { _count: { select: { products: true } } },
+      include: ACTIVE_PRODUCT_COUNT,
     });
     if (!category) throw new NotFoundException('Category not found');
     return category;
