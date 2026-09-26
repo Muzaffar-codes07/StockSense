@@ -13,7 +13,9 @@
     "prisma:seed": "ts-node prisma/seed.ts",
     "test": "jest",
     "test:db": "jest -c jest.db.config.js --runInBand",
-    "lint": "eslint \"src/**/*.ts\" --fix"
+    "lint": "eslint \"src/**/*.ts\" --fix",
+    "seed:demo": "ts-node prisma/seed-demo.ts",
+    "db:demo": "prisma migrate reset --force && ts-node prisma/seed-demo.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
