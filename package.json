@@ -4,18 +4,18 @@
   "private": true,
   "description": "StockSense — modular Inventory Management System (IMS)",
   "workspaces": [
-    "apps/api",
-    "apps/web"
+    "backend",
+    "frontend"
   ],
   "scripts": {
-    "dev:api": "npm run start:dev --workspace apps/api",
-    "dev:web": "npm run dev --workspace apps/web",
+    "dev:api": "npm run start:dev --workspace backend",
+    "dev:web": "npm run dev --workspace frontend",
     "db:up": "docker compose up -d db",
-    "db:migrate": "npm run prisma:migrate --workspace apps/api",
-    "db:seed": "npm run prisma:seed --workspace apps/api",
+    "db:migrate": "npm run prisma:migrate --workspace backend",
+    "db:seed": "npm run prisma:seed --workspace backend",
     "up": "docker compose up --build",
     "lint": "npm run lint --workspaces --if-present",
-    "format": "prettier --write \"apps/**/src/**/*.{ts,tsx}\""
+    "format": "prettier --write \"{backend,frontend}/src/**/*.{ts,tsx}\""
   },
   "devDependencies": {
     "@eslint/js": "^9.11.1",

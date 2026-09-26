@@ -16,10 +16,9 @@ A modular IMS that replaces manual registers, Excel sheets, and scattered tracki
 ## Repository layout
 
 ```
-apps/
-  api/    NestJS backend — DB schema, ledger engine, auth (Role 1)
-  web/    React frontend — shell, design system, dashboard (Role 2)
-docs/     Team handoff — README + one brief per role
+backend/    NestJS backend — DB schema, ledger engine, auth (Role 1)
+frontend/   React frontend — shell, design system, dashboard (Role 2)
+docs/       Team handoff — README + one brief per role
 ```
 
 ## Quick start
@@ -39,15 +38,15 @@ cp .env.example .env
 docker compose up -d db
 
 # 2. Backend
-cd apps/api
+cd backend
 cp .env.example .env
 npm install
-npx prisma migrate dev --name init   # creates tables from prisma/schema.prisma
+npx prisma migrate dev --name init   # applies the committed migration / creates tables
 npm run prisma:seed                   # demo data + admin@stocksense.dev / password123
 npm run start:dev                     # http://localhost:3000
 
 # 3. Frontend (new terminal)
-cd apps/web
+cd frontend
 cp .env.example .env
 npm install
 npm run dev                           # http://localhost:5173
@@ -55,8 +54,8 @@ npm run dev                           # http://localhost:5173
 
 ## What's already wired (the foundation)
 
-- **DB schema** — full StockSense model in `apps/api/prisma/schema.prisma` (users, warehouses/locations, products/categories, partners, the `StockMove` ledger, and receipt/delivery/transfer/adjustment documents).
-- **Stock Ledger engine** — `apps/api/src/stock/stock.service.ts`: `postMove()`, `stockOnHand()`, `totalStock()`. **This is the contract Roles 3 & 4 build against.**
+- **DB schema** — full StockSense model in `backend/prisma/schema.prisma` (users, warehouses/locations, products/categories, partners, the `StockMove` ledger, and receipt/delivery/transfer/adjustment documents).
+- **Stock Ledger engine** — `backend/src/stock/stock.service.ts`: `postMove()`, `stockOnHand()`, `totalStock()`. **This is the contract Roles 3 & 4 build against.**
 - **Auth** — sign-up + login working (JWT + argon2); OTP reset stubbed for Role 1 to finish.
 - **Global validation + error envelope** — `ValidationPipe` + `HttpExceptionFilter` for graceful, consistent errors.
 - **Frontend shell** — sidebar nav, routing, profile/logout, working login, TanStack Query + axios client. Placeholder page per section, tagged with its owning role.

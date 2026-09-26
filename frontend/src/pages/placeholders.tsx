@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { KpiCard } from '@/components/ui';
 
 // Shared placeholder card so the shell is navigable from day one.
 // Each role replaces the matching page with real screens.
@@ -14,11 +15,19 @@ function Placeholder({ title, owner, children }: { title: string; owner: string;
   );
 }
 
-// Role 2 — replace with KPI cards + charts, wiring counts from Roles 3 & 4.
+// Role 2 — replace mock values with live counts from Roles 3 & 4.
 export const Dashboard = () => (
-  <Placeholder title="Dashboard" owner="Role 2 — Frontend Platform">
-    KPIs: Total in Stock · Low/Out of Stock · Pending Receipts · Pending Deliveries · Transfers Scheduled
-  </Placeholder>
+  <div>
+    <h1 className="mb-1 text-2xl font-semibold text-slate-800">Dashboard</h1>
+    <p className="mb-6 text-sm text-slate-400">Owned by Role 2 — wire live KPI values</p>
+    <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
+      <KpiCard label="Total in Stock" value="—" />
+      <KpiCard label="Low / Out of Stock" value="—" accent="warning" />
+      <KpiCard label="Pending Receipts" value="—" />
+      <KpiCard label="Pending Deliveries" value="—" />
+      <KpiCard label="Transfers Scheduled" value="—" />
+    </div>
+  </div>
 );
 
 // Role 3 — products CRUD, categories, reorder rules, stock per location.

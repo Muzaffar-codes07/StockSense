@@ -7,6 +7,9 @@ node_modules/
 dist/
 build/
 *.tsbuildinfo
+# emitted from vite.config.ts by `tsc -b`
+frontend/vite.config.js
+frontend/vite.config.d.ts
 
 # Env & secrets
 .env
@@ -15,7 +18,7 @@ build/
 !.env.example
 
 # Prisma
-apps/api/prisma/migrations/dev.db*
+backend/prisma/migrations/dev.db*
 
 # Logs
 *.log

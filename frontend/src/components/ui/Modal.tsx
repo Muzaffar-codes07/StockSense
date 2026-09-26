@@ -1,0 +1,27 @@
+import type { ReactNode } from 'react';
+
+interface ModalProps {
+  open: boolean;
+  title?: string;
+  onClose: () => void;
+  children: ReactNode;
+}
+
+// Shared modal for create/edit forms across the app.
+export function Modal({ open, title, onClose, children }: ModalProps) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {title && <h2 className="mb-4 text-lg font-semibold text-slate-800">{title}</h2>}
+        {children}
+      </div>
+    </div>
+  );
+}
