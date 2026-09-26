@@ -43,6 +43,30 @@ export type LocationStock = {
   qty: number;
 };
 
+export type OpenDocLine = {
+  docId: string;
+  reference: string;
+  partnerName: string | null;
+  status: string;
+  qty: number;
+  createdAt: string;
+};
+
+export type StockBreakdown = {
+  productId: string;
+  name: string;
+  sku: string;
+  uom: string;
+  onHand: number;
+  reserved: number;
+  freeToUse: number;
+  incoming: number;
+  forecast: number;
+  locations: LocationStock[];
+  reservedBy: OpenDocLine[];
+  incomingFrom: OpenDocLine[];
+};
+
 export type LocationOption = {
   id: string;
   name: string;

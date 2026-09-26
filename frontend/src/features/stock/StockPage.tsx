@@ -6,6 +6,7 @@ import { useDebouncedValue } from '@/lib/useDebouncedValue';
 import { formatMoney, formatQty } from './format';
 import { useStockAlerts, useStockList } from './hooks';
 import { STATUS_OPTIONS, StatusBadge } from './StatusBadge';
+import { StockBreakdownModal } from './StockBreakdownModal';
 import type { StockRow, StockStatus } from './types';
 
 const PAGE_SIZE = 20;
@@ -18,6 +19,7 @@ export function StockPage({ onUpdate }: { onUpdate?: (row: StockRow) => void }) 
   const [search, setSearch] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [page, setPage] = useState(1);
+  const [explained, setExplained] = useState<StockRow | null>(null);
   const debouncedSearch = useDebouncedValue(search);
 
   const stock = useStockList({
@@ -55,12 +57,18 @@ export function StockPage({ onUpdate }: { onUpdate?: (row: StockRow) => void }) 
       key: 'freeToUse',
       header: 'Free to use',
       render: (r) => (
-        <span
-          className={r.freeToUse < 0 ? 'font-medium text-red-600' : undefined}
-          title={r.reserved > 0 ? `${formatQty(r.reserved)} ${r.uom} reserved by pending deliveries` : undefined}
+        <button
+          type="button"
+          onClick={() => setExplained(r)}
+          className={`underline decoration-dotted underline-offset-4 hover:text-brand-600 ${r.freeToUse < 0 ? 'font-medium text-red-600' : ''}`}
+          title={
+            r.reserved > 0
+              ? `${formatQty(r.reserved)} ${r.uom} reserved by pending deliveries. Click for the breakdown.`
+              : 'Click for the breakdown'
+          }
         >
           {formatQty(r.freeToUse)} {r.uom}
-        </span>
+        </button>
       ),
     },
     {
@@ -163,6 +171,7 @@ export function StockPage({ onUpdate }: { onUpdate?: (row: StockRow) => void }) 
         />
       )}
       <Pager page={page} totalPages={stock.data?.totalPages ?? 1} onPage={setPage} />
+      <StockBreakdownModal row={explained} onClose={() => setExplained(null)} />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { escapeLike } from './like';
 import {
   LocationStock,
+  OpenDocLine,
   StockFilter,
   StockKpis,
   StockRow,
@@ -88,6 +89,39 @@ export class StockQuantRepository {
       WHERE sq.product_id = ${productId} AND sq.qty <> 0
       ORDER BY w.name, l.name`;
     return raw.map((r) => ({ ...r, qty: Number(r.qty) }));
+  }
+
+  /** Open deliveries (reserving) and receipts (incoming) of a product, one row per document. */
+  async openDocuments(
+    productId: string,
+  ): Promise<{ reservedBy: OpenDocLine[]; incomingFrom: OpenDocLine[] }> {
+    const raw = await this.prisma.$queryRaw<
+      (Omit<OpenDocLine, 'reference' | 'qty'> & { kind: 'delivery' | 'receipt'; qty: Num })[]
+    >`
+      SELECT 'delivery' AS kind, d.id AS "docId", d.status::text AS status,
+             pa.name AS "partnerName", d."createdAt", SUM(dl.qty) AS qty
+      FROM "DeliveryLine" dl
+      JOIN "Delivery" d ON d.id = dl."deliveryId"
+      LEFT JOIN "Partner" pa ON pa.id = d."partnerId"
+      WHERE dl."productId" = ${productId} AND d.status::text IN (${Prisma.join(OPEN_STATUSES)})
+      GROUP BY d.id, pa.name
+      UNION ALL
+      SELECT 'receipt', r.id, r.status::text, pa.name, r."createdAt", SUM(rl.qty)
+      FROM "ReceiptLine" rl
+      JOIN "Receipt" r ON r.id = rl."receiptId"
+      LEFT JOIN "Partner" pa ON pa.id = r."partnerId"
+      WHERE rl."productId" = ${productId} AND r.status::text IN (${Prisma.join(OPEN_STATUSES)})
+      GROUP BY r.id, pa.name
+      ORDER BY "createdAt"`;
+    const line = ({ kind, qty, ...r }: (typeof raw)[number]): OpenDocLine => ({
+      ...r,
+      reference: `${kind === 'delivery' ? 'DEL' : 'REC'}-${r.docId.slice(0, 8).toUpperCase()}`,
+      qty: Number(qty),
+    });
+    return {
+      reservedBy: raw.filter((r) => r.kind === 'delivery').map(line),
+      incomingFrom: raw.filter((r) => r.kind === 'receipt').map(line),
+    };
   }
 
   async kpis(): Promise<StockKpis> {

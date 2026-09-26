@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/lib/api';
@@ -40,11 +41,32 @@ const steel = row({
   status: 'OK',
 });
 
+const steelBreakdown = {
+  productId: 's',
+  name: 'Steel Rods',
+  sku: 'STEEL-001',
+  uom: 'kg',
+  onHand: 77,
+  reserved: 10,
+  freeToUse: 67,
+  incoming: 0,
+  forecast: 67,
+  locations: [
+    { locationId: 'm', locationName: 'Main Store', warehouseName: 'Main Warehouse', qty: 67 },
+    { locationId: 'r', locationName: 'Production Rack', warehouseName: 'Main Warehouse', qty: 10 },
+  ],
+  reservedBy: [
+    { docId: 'd1', reference: 'DEL-1A2B3C4D', partnerName: 'Beta Retailers', status: 'WAITING', qty: 10, createdAt: '' },
+  ],
+  incomingFrom: [],
+};
+
 function renderPage() {
   get.mockImplementation(async (url: string) => {
     if (url === '/stock') return { data: { data: [varnish, steel], page: 1, pageSize: 20, total: 2, totalPages: 1 } };
     if (url === '/stock/alerts') return { data: [varnish] };
     if (url === '/categories') return { data: [] };
+    if (url === '/stock/s/breakdown') return { data: steelBreakdown };
     throw new Error(`404 ${url}`);
   });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -84,5 +106,25 @@ describe('StockPage forecast column', () => {
     const cells = await cellsOf('Steel Rods');
     expect(cells.getByTitle('77 on hand + 0 incoming − 10 reserved')).toHaveTextContent('67 kg');
     expect(cells.queryByText(/incoming$/)).not.toBeInTheDocument();
+  });
+
+  describe('free-to-use breakdown', () => {
+    it('opens a worked sum when the free-to-use value is clicked', async () => {
+      renderPage();
+      const cells = await cellsOf('Steel Rods');
+      await userEvent.click(cells.getByRole('button', { name: /67 kg/ }));
+
+      const dialog = await screen.findByRole('dialog', { name: /Steel Rods/ });
+      const inDialog = within(dialog);
+      expect(await inDialog.findByText('Main Store')).toBeInTheDocument();
+      expect(inDialog.getByText('Production Rack')).toBeInTheDocument();
+      expect(inDialog.getByText('DEL-1A2B3C4D')).toBeInTheDocument();
+      expect(inDialog.getByText(/Beta Retailers/)).toBeInTheDocument();
+      expect(inDialog.getByTestId('total-onHand')).toHaveTextContent('77 kg');
+      expect(inDialog.getByTestId('total-reserved')).toHaveTextContent('10 kg');
+      expect(inDialog.getByTestId('total-freeToUse')).toHaveTextContent('67 kg');
+      expect(inDialog.getByTestId('total-forecast')).toHaveTextContent('67 kg');
+      expect(inDialog.getByText(/No open receipts/)).toBeInTheDocument();
+    });
   });
 });

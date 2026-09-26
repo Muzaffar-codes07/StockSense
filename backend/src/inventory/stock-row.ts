@@ -37,6 +37,33 @@ export interface LocationStock {
   qty: number;
 }
 
+/** One open (WAITING/READY) document's quantity of a product. */
+export interface OpenDocLine {
+  docId: string;
+  /** Same format as the Operations page: DEL-/REC- + first 8 id chars. */
+  reference: string;
+  partnerName: string | null;
+  status: string;
+  qty: number;
+  createdAt: Date;
+}
+
+/** Every part behind a product's free-to-use and forecast figures. */
+export interface StockBreakdown {
+  productId: string;
+  name: string;
+  sku: string;
+  uom: string;
+  onHand: number;
+  reserved: number;
+  freeToUse: number;
+  incoming: number;
+  forecast: number;
+  locations: LocationStock[];
+  reservedBy: OpenDocLine[];
+  incomingFrom: OpenDocLine[];
+}
+
 export interface LocationOption {
   id: string;
   name: string;

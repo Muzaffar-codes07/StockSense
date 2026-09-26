@@ -9,6 +9,7 @@ export const stockKeys = {
   kpis: ['stock', 'kpis'] as const,
   locations: ['stock', 'locations'] as const,
   productLocations: (id: string) => ['stock', 'product-locations', id] as const,
+  breakdown: (id: string) => ['stock', 'breakdown', id] as const,
 };
 
 export const useStockList = (f: StockFilters) =>
@@ -32,6 +33,14 @@ export const useProductLocations = (id: string | undefined) =>
   useQuery({
     queryKey: stockKeys.productLocations(id ?? ''),
     queryFn: () => stockApi.productLocations(id as string),
+    enabled: Boolean(id),
+  });
+
+/** The parts behind a product's free-to-use and forecast figures. */
+export const useStockBreakdown = (id: string | undefined) =>
+  useQuery({
+    queryKey: stockKeys.breakdown(id ?? ''),
+    queryFn: () => stockApi.breakdown(id as string),
     enabled: Boolean(id),
   });
 

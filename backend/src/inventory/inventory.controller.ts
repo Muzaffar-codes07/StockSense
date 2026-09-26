@@ -28,6 +28,11 @@ export class InventoryController {
     return this.inventory.allLocations();
   }
 
+  @Get(':productId/breakdown')
+  breakdown(@Param('productId', ParseUUIDPipe) productId: string) {
+    return this.inventory.breakdown(productId);
+  }
+
   @Get(':productId/locations')
   locations(@Param('productId', ParseUUIDPipe) productId: string) {
     return this.inventory.locations(productId);

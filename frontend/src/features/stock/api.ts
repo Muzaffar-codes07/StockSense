@@ -4,6 +4,7 @@ import type {
   LocationStock,
   Paginated,
   StockFilters,
+  StockBreakdown,
   StockKpis,
   StockRow,
 } from './types';
@@ -16,6 +17,8 @@ export const stockApi = {
   locations: () => api.get<LocationOption[]>('/stock/locations').then((r) => r.data),
   productLocations: (productId: string) =>
     api.get<LocationStock[]>(`/stock/${productId}/locations`).then((r) => r.data),
+  breakdown: (productId: string) =>
+    api.get<StockBreakdown>(`/stock/${productId}/breakdown`).then((r) => r.data),
   /**
    * Counts one product at one location via Role 4's adjustment document:
    * create (server computes recorded qty + diff from the ledger), then validate

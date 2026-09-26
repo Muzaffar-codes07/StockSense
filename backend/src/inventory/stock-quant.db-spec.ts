@@ -1,5 +1,7 @@
+import { NotFoundException } from '@nestjs/common';
 import { MoveType, PrismaClient } from '@prisma/client';
 import { StockService } from '../stock/stock.service';
+import { InventoryService } from './inventory.service';
 import { StockQuantRepository } from './stock-quant.repository';
 
 // Runs the brief's demo flow against the real database and checks every
@@ -8,6 +10,7 @@ describe('stock_quant + StockQuantRepository (live DB)', () => {
   const prisma = new PrismaClient();
   const stock = new StockService(prisma as never);
   const repo = new StockQuantRepository(prisma as never);
+  const inventory = new InventoryService(repo, prisma as never);
   const tag = `T${Date.now()}`;
   let warehouseId: string;
   let mainStore: string;
@@ -126,6 +129,48 @@ describe('stock_quant + StockQuantRepository (live DB)', () => {
       await prisma.receipt.deleteMany({ where: { id: { in: docs.map((d) => d.id) } } });
       await prisma.delivery.delete({ where: { id: delivery.id } });
     }
+  });
+
+  it('breaks free-to-use and forecast down into locations and open documents', async () => {
+    const partner = await prisma.partner.create({ data: { name: `${tag} Beta`, type: 'CUSTOMER' } });
+    const delivery = await prisma.delivery.create({
+      data: { status: 'WAITING', partnerId: partner.id, lines: { create: [{ productId: steel, qty: 4 }, { productId: steel, qty: 3 }] } },
+    });
+    const receipt = await prisma.receipt.create({
+      data: { status: 'READY', lines: { create: { productId: steel, qty: 40 } } },
+    });
+    const draft = await prisma.delivery.create({
+      data: { status: 'DRAFT', lines: { create: { productId: steel, qty: 100 } } },
+    });
+    try {
+      const b = await inventory.breakdown(steel);
+      expect(b).toMatchObject({ name: `${tag} Steel`, uom: 'kg', onHand: 77, reserved: 7, freeToUse: 70, incoming: 40, forecast: 110 });
+      expect(b.locations.map((l) => [l.locationName, l.qty])).toEqual([['Main Store', 67], ['Production Rack', 10]]);
+      // One entry per document, lines of the same document summed; drafts left out.
+      expect(b.reservedBy).toEqual([
+        expect.objectContaining({
+          docId: delivery.id,
+          reference: `DEL-${delivery.id.slice(0, 8).toUpperCase()}`,
+          partnerName: `${tag} Beta`,
+          status: 'WAITING',
+          qty: 7,
+        }),
+      ]);
+      expect(b.incomingFrom).toEqual([
+        expect.objectContaining({ reference: `REC-${receipt.id.slice(0, 8).toUpperCase()}`, partnerName: null, qty: 40 }),
+      ]);
+      // The explanation adds up to exactly what the Stock list shows.
+      const { rows } = await repo.findRows({ search: `${tag} Steel` });
+      expect([rows[0].freeToUse, rows[0].forecast]).toEqual([b.freeToUse, b.forecast]);
+    } finally {
+      await prisma.delivery.deleteMany({ where: { id: { in: [delivery.id, draft.id] } } });
+      await prisma.receipt.delete({ where: { id: receipt.id } });
+      await prisma.partner.delete({ where: { id: partner.id } });
+    }
+  });
+
+  it('breakdown of an unknown product is 404', async () => {
+    await expect(inventory.breakdown('00000000-0000-4000-8000-000000000000')).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('treats % in search text literally', async () => {
