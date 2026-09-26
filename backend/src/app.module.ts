@@ -5,6 +5,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { StockModule } from './stock/stock.module';
 import { AuthModule } from './auth/auth.module';
 import { WarehousesModule } from './warehouses/warehouses.module';
+import { LedgerModule } from './ledger/ledger.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { ProductsModule } from './products/products.module';
 import { CategoriesModule } from './categories/categories.module';
@@ -27,6 +28,7 @@ import { OperationsModule } from './operations/operations.module';
     AuthModule,
     WarehousesModule,
     InventoryModule,
+    LedgerModule,
     ProductsModule,
     CategoriesModule,
     OperationsModule,
