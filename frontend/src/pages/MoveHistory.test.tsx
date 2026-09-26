@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -53,28 +53,28 @@ describe('Move History paging (audit P1)', () => {
     get.mockReset();
   });
 
+  const lastParams = () => (get.mock.calls.filter(([url]) => url === '/operations/moves').at(-1)?.[1] as { params: Record<string, unknown> }).params;
+
   it('pages through the whole ledger instead of stopping at the first 50', async () => {
     renderPage();
-    expect(await screen.findByText('Page 1 of 3')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
-    expect(await screen.findByText('Page 2 of 3')).toBeInTheDocument();
-    expect(get).toHaveBeenLastCalledWith('/operations/moves', { params: expect.objectContaining({ page: 2 }) });
+    await userEvent.click(await screen.findByRole('button', { name: 'Next page' }));
+    await waitFor(() => expect(lastParams()).toMatchObject({ page: 2 }));
+    expect(await screen.findByText('Product 2')).toBeInTheDocument();
   });
 
   it('goes back to page 1 when the filter changes', async () => {
     renderPage();
-    await userEvent.click(await screen.findByRole('button', { name: 'Next' }));
-    await screen.findByText('Page 2 of 3');
-    await userEvent.selectOptions(screen.getByLabelText('Move type'), 'DELIVERY');
-    expect(await screen.findByText('Page 1 of 3')).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole('button', { name: 'Next page' }));
+    await waitFor(() => expect(lastParams()).toMatchObject({ page: 2 }));
+    await screen.findByRole('option', { name: 'Main Warehouse / Production Rack' });
+    await userEvent.selectOptions(screen.getByLabelText('Location'), 'rack');
+    await waitFor(() => expect(lastParams()).toMatchObject({ page: 1, locationId: 'rack' }));
   });
 
   it('filters by location (warehouse / location filter from the brief)', async () => {
     renderPage();
-    await screen.findByText('Page 1 of 3');
-    await userEvent.selectOptions(await screen.findByLabelText('Location'), 'rack');
-    await screen.findByText('Page 1 of 3');
-    expect(get).toHaveBeenLastCalledWith('/operations/moves', { params: expect.objectContaining({ locationId: 'rack', page: 1 }) });
-    expect(screen.getByRole('option', { name: 'Main Warehouse · Production Rack' })).toBeInTheDocument();
+    await screen.findByRole('option', { name: 'Main Warehouse / Production Rack' });
+    await userEvent.selectOptions(screen.getByLabelText('Location'), 'rack');
+    await waitFor(() => expect(lastParams()).toMatchObject({ locationId: 'rack', page: 1 }));
   });
 });

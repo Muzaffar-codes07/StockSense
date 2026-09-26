@@ -1,10 +1,23 @@
+// StockSense component system — every screen is built from these primitives.
+export { Button, ButtonLink, IconButton } from './Button';
+export type { ButtonVariant, ButtonSize } from './Button';
+export { Card, CardHeader } from './Card';
+export type { CardTone } from './Card';
+export { Badge, DocStatusBadge, StockStatusBadge, MoveTypeBadge } from './Badge';
+export { KpiCard } from './KpiCard';
 export { Table } from './Table';
 export type { Column } from './Table';
 export { Modal } from './Modal';
-export { FormField } from './FormField';
-export { FilterBar } from './FilterBar';
-export type { FilterOption } from './FilterBar';
-export { KpiCard } from './KpiCard';
+export { SideSheet } from './SideSheet';
+export { FormField, inputClass } from './FormField';
 export { SelectField } from './SelectField';
 export type { SelectOption } from './SelectField';
+export { FilterBar, SearchInput, ChipGroup } from './FilterBar';
+export type { FilterOption } from './FilterBar';
 export { Pager } from './Pager';
+export { EmptyState, ErrorState, Notice, Skeleton, Spinner, friendlyError } from './States';
+export { ToastProvider, useToast } from './Toast';
+export { Menu } from './Menu';
+export type { MenuItem } from './Menu';
+export { LogoMark, Wordmark, Avatar } from './Brand';
+export { PageMetaProvider, usePageMeta, usePageMetaValue, Section, SubNav, DetailRow, Metric } from './Page';

@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { FilterBar, Pager, SelectField, Table, type Column } from '@/components/ui';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Boxes, SlidersHorizontal } from 'lucide-react';
+import { Button, EmptyState, FilterBar, Notice, Pager, SelectField, StockStatusBadge, Table, usePageMeta, type Column } from '@/components/ui';
 import { useCategories } from '@/features/products/hooks';
+import { cn } from '@/lib/cn';
 import { useDebouncedValue } from '@/lib/useDebouncedValue';
 import { formatMoney, formatQty } from './format';
 import { useStockAlerts, useStockList } from './hooks';
-import { STATUS_OPTIONS, StatusBadge } from './StatusBadge';
+import { STATUS_OPTIONS } from './StatusBadge';
 import { StockBreakdownModal } from './StockBreakdownModal';
 import type { StockRow, StockStatus } from './types';
 
@@ -13,6 +15,8 @@ const PAGE_SIZE = 20;
 const isStatus = (v: string | null): v is StockStatus => v === 'OK' || v === 'LOW' || v === 'OUT';
 
 export function StockPage({ onUpdate }: { onUpdate?: (row: StockRow) => void }) {
+  usePageMeta('Stock', 'On hand, reserved and forecast for every product.');
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   // Case-insensitive, so a hand-typed or shared ?status=low link still filters.
   const statusParam = params.get('status')?.toUpperCase() ?? null;
@@ -38,35 +42,38 @@ export function StockPage({ onUpdate }: { onUpdate?: (row: StockRow) => void }) 
     setParams(next ? { status: next } : {});
   };
 
-  const out = alerts.data?.filter((r) => r.status === 'OUT').length ?? 0;
-  const low = alerts.data?.filter((r) => r.status === 'LOW').length ?? 0;
+  const alertRows = Array.isArray(alerts.data) ? alerts.data : [];
+  const out = alertRows.filter((r) => r.status === 'OUT').length;
+  const low = alertRows.filter((r) => r.status === 'LOW').length;
+  const activeCount = (search ? 1 : 0) + (categoryId ? 1 : 0) + (status ? 1 : 0);
 
   const columns: Column<StockRow>[] = [
     {
       key: 'name',
       header: 'Product',
       render: (r) => (
-        <div>
-          <p className="font-medium text-slate-800">{r.name}</p>
-          <p className="font-mono text-xs text-slate-400">{r.sku}</p>
+        <div className="min-w-0">
+          <p className="truncate font-semibold text-ink">{r.name}</p>
+          <p className="font-mono text-[12px] text-ink-3">{r.sku}</p>
         </div>
       ),
     },
-    { key: 'unitCost', header: 'Per unit cost', render: (r) => formatMoney(r.unitCost) },
-    { key: 'onHand', header: 'On hand', render: (r) => `${formatQty(r.onHand)} ${r.uom}` },
+    { key: 'categoryName', header: 'Category', hideOnMobile: true, render: (r) => <span className="text-ink-2">{r.categoryName ?? '—'}</span> },
+    { key: 'unitCost', header: 'Per unit cost', align: 'right', hideOnMobile: true, render: (r) => <span className="tabular">{formatMoney(r.unitCost)}</span> },
+    { key: 'onHand', header: 'On hand', align: 'right', render: (r) => <span className="tabular font-medium">{`${formatQty(r.onHand)} ${r.uom}`}</span> },
     {
       key: 'freeToUse',
       header: 'Free to use',
+      align: 'right',
       render: (r) => (
         <button
           type="button"
           onClick={() => setExplained(r)}
-          className={`underline decoration-dotted underline-offset-4 hover:text-brand-600 ${r.freeToUse < 0 ? 'font-medium text-red-600' : ''}`}
-          title={
-            r.reserved > 0
-              ? `${formatQty(r.reserved)} ${r.uom} reserved by pending deliveries. Click for the breakdown.`
-              : 'Click for the breakdown'
-          }
+          className={cn(
+            'tabular rounded-md underline decoration-dove decoration-dotted underline-offset-4 transition-colors hover:text-sienna hover:decoration-sienna',
+            r.freeToUse < 0 && 'font-semibold text-danger-fg',
+          )}
+          title={r.reserved > 0 ? `${formatQty(r.reserved)} ${r.uom} reserved by pending deliveries. Click for the breakdown.` : 'Click for the breakdown'}
         >
           {formatQty(r.freeToUse)} {r.uom}
         </button>
@@ -75,15 +82,14 @@ export function StockPage({ onUpdate }: { onUpdate?: (row: StockRow) => void }) 
     {
       key: 'forecast',
       header: 'Forecast',
+      align: 'right',
       render: (r) => (
         <span
-          className={r.forecast < 0 ? 'font-medium text-red-600' : undefined}
+          className={cn('tabular', r.forecast < 0 && 'font-semibold text-danger-fg')}
           title={`${formatQty(r.onHand)} on hand + ${formatQty(r.incoming)} incoming − ${formatQty(r.reserved)} reserved`}
         >
           {formatQty(r.forecast)} {r.uom}
-          {r.incoming > 0 && (
-            <span className="block text-xs text-emerald-600">+{formatQty(r.incoming)} incoming</span>
-          )}
+          {r.incoming > 0 && <span className="block text-[12px] font-medium text-success-fg">+{formatQty(r.incoming)} incoming</span>}
         </span>
       ),
     },
@@ -92,10 +98,10 @@ export function StockPage({ onUpdate }: { onUpdate?: (row: StockRow) => void }) 
       header: 'Status',
       render: (r) => (
         <>
-          <StatusBadge status={r.status} />
+          <StockStatusBadge status={r.status} />
           {r.suggestedQty > 0 && (
             <span
-              className="mt-1 block text-xs font-medium text-amber-700"
+              className="mt-1 block text-[12px] font-medium text-amber-700"
               title={`Forecast ${formatQty(r.forecast)} is at or under the minimum ${formatQty(r.minQty ?? 0)}: order up to ${formatQty(r.maxQty ?? r.minQty ?? 0)}`}
             >
               Reorder {formatQty(r.suggestedQty)} {r.uom}
@@ -109,14 +115,11 @@ export function StockPage({ onUpdate }: { onUpdate?: (row: StockRow) => void }) 
           {
             key: 'actions',
             header: '',
+            align: 'right' as const,
             render: (r: StockRow) => (
-              <button
-                type="button"
-                className="text-sm font-medium text-brand-700 hover:underline"
-                onClick={() => onUpdate(r)}
-              >
+              <Button variant="ghost" size="sm" icon={<SlidersHorizontal className="h-3.5 w-3.5" />} onClick={() => onUpdate(r)}>
                 Update stock
-              </button>
+              </Button>
             ),
           },
         ]
@@ -125,27 +128,27 @@ export function StockPage({ onUpdate }: { onUpdate?: (row: StockRow) => void }) 
 
   return (
     <div>
-      <h1 className="mb-6 text-2xl font-semibold text-slate-800">Stock</h1>
-
       {out + low > 0 && (
-        <div className="mb-4 flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          <span>
-            <strong>{out + low}</strong> product{out + low === 1 ? '' : 's'} need attention: {out} out of stock,{' '}
-            {low} low.
-          </span>
-          <span className="flex gap-3">
-            {out > 0 && (
-              <button type="button" className="font-medium underline" onClick={() => setStatus('OUT')}>
-                Show out of stock
-              </button>
-            )}
-            {low > 0 && (
-              <button type="button" className="font-medium underline" onClick={() => setStatus('LOW')}>
-                Show low stock
-              </button>
-            )}
-          </span>
-        </div>
+        <Notice
+          tone="warning"
+          className="mb-5"
+          action={
+            <span className="flex gap-3">
+              {out > 0 && (
+                <button type="button" className="font-semibold underline underline-offset-2" onClick={() => setStatus('OUT')}>
+                  Show out of stock
+                </button>
+              )}
+              {low > 0 && (
+                <button type="button" className="font-semibold underline underline-offset-2" onClick={() => setStatus('LOW')}>
+                  Show low stock
+                </button>
+              )}
+            </span>
+          }
+        >
+          <strong>{out + low}</strong> product{out + low === 1 ? '' : 's'} need attention: {out} out of stock, {low} low.
+        </Notice>
       )}
 
       <FilterBar
@@ -154,40 +157,59 @@ export function StockPage({ onUpdate }: { onUpdate?: (row: StockRow) => void }) 
           setSearch(v);
           setPage(1);
         }}
+        activeCount={activeCount}
+        onClear={() => {
+          setSearch('');
+          setCategoryId('');
+          setStatus('');
+        }}
+        trailing={
+          stock.data && (
+            <span className="text-[13px] text-ink-2">
+              <span className="tabular font-semibold text-ink">{stock.data.total}</span> product{stock.data.total === 1 ? '' : 's'}
+            </span>
+          )
+        }
       >
-        <div className="w-48">
-          <SelectField
-            aria-label="Category"
-            placeholder="All categories"
-            value={categoryId}
-            onChange={(e) => {
-              setCategoryId(e.target.value);
-              setPage(1);
-            }}
-            options={(categories.data ?? []).map((c) => ({ value: c.id, label: c.name }))}
-          />
-        </div>
-        <div className="w-44">
-          <SelectField
-            aria-label="Stock status"
-            placeholder="Any status"
-            value={status}
-            onChange={(e) => setStatus(e.target.value as StockStatus | '')}
-            options={STATUS_OPTIONS}
-          />
-        </div>
+        <SelectField
+          variant="pill"
+          aria-label="Category"
+          placeholder="All categories"
+          value={categoryId}
+          onChange={(e) => {
+            setCategoryId(e.target.value);
+            setPage(1);
+          }}
+          options={(Array.isArray(categories.data) ? categories.data : []).map((c) => ({ value: c.id, label: c.name }))}
+        />
+        <SelectField
+          variant="pill"
+          aria-label="Stock status"
+          placeholder="Any status"
+          value={status}
+          onChange={(e) => setStatus(e.target.value as StockStatus | '')}
+          options={STATUS_OPTIONS}
+        />
       </FilterBar>
 
-      {stock.error ? (
-        <p className="rounded-lg bg-red-50 p-4 text-sm text-red-700">{stock.error.message}</p>
-      ) : (
-        <Table
-          columns={columns}
-          rows={stock.data?.data ?? []}
-          empty={stock.isLoading ? 'Loading…' : 'No products match these filters'}
-        />
-      )}
-      <Pager page={page} totalPages={stock.data?.totalPages ?? 1} onPage={setPage} />
+      <Table
+        caption="Stock levels"
+        columns={columns}
+        rows={stock.data?.data ?? []}
+        loading={stock.isLoading}
+        error={stock.error?.message}
+        onRetry={() => stock.refetch()}
+        onRowClick={(r) => navigate(`/products/${r.id}`)}
+        empty={
+          <EmptyState
+            compact
+            icon={Boxes}
+            title={activeCount ? 'No products match these filters' : 'No stock yet'}
+            description={activeCount ? 'Try a different search or clear the filters.' : 'Products appear here once they are added to the catalogue.'}
+          />
+        }
+      />
+      <Pager page={page} totalPages={stock.data?.totalPages ?? 1} onPage={setPage} total={stock.data?.total} pageSize={PAGE_SIZE} />
       <StockBreakdownModal row={explained} onClose={() => setExplained(null)} />
     </div>
   );

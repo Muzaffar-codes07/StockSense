@@ -1,17 +1,16 @@
 import { useState, type FormEvent } from 'react';
-import { Table, type Column } from '@/components/ui';
+import { Check, Pencil, Plus, Tags, Trash2, X } from 'lucide-react';
+import { Button, EmptyState, IconButton, inputClass, Notice, Table, useToast, type Column } from '@/components/ui';
+import { cn } from '@/lib/cn';
 import { useCategories, useCreateCategory, useDeleteCategory, useUpdateCategory } from './hooks';
 import type { Category } from './types';
-
-const input =
-  'rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none';
-const link = 'text-sm font-medium text-brand-700 hover:underline disabled:cursor-not-allowed disabled:text-slate-300 disabled:no-underline';
 
 export function CategoriesPanel() {
   const categories = useCategories();
   const create = useCreateCategory();
   const rename = useUpdateCategory();
   const remove = useDeleteCategory();
+  const toast = useToast();
   const [name, setName] = useState('');
   const [editing, setEditing] = useState<{ id: string; name: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +29,10 @@ export function CategoriesPanel() {
   const onAdd = async (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return setError('Category name is required');
-    if (await run(() => create.mutateAsync(name.trim()))) setName('');
+    if (await run(() => create.mutateAsync(name.trim()))) {
+      toast.success('Category added', name.trim());
+      setName('');
+    }
   };
 
   const onRename = async () => {
@@ -48,7 +50,7 @@ export function CategoriesPanel() {
           <input
             autoFocus
             aria-label="Category name"
-            className={input}
+            className={cn(inputClass, 'h-9 max-w-xs')}
             value={editing.name}
             onChange={(e) => setEditing({ id: c.id, name: e.target.value })}
             onKeyDown={(e) => {
@@ -57,61 +59,72 @@ export function CategoriesPanel() {
             }}
           />
         ) : (
-          c.name
+          <span className="font-semibold text-ink">{c.name}</span>
         ),
     },
-    { key: 'productCount', header: 'Products' },
+    {
+      key: 'productCount',
+      header: 'Products',
+      align: 'right',
+      render: (c) => <span className="tabular text-ink-2">{c.productCount}</span>,
+    },
     {
       key: 'actions',
       header: '',
+      align: 'right',
+      width: 'w-32',
       render: (c) =>
         editing?.id === c.id ? (
-          <span className="flex gap-3">
-            <button type="button" className={link} onClick={onRename}>Save</button>
-            <button type="button" className={link} onClick={() => setEditing(null)}>Cancel</button>
+          <span className="inline-flex gap-1">
+            <IconButton tone="plain" label="Save name" size="sm" onClick={onRename}>
+              <Check className="h-4 w-4" />
+            </IconButton>
+            <IconButton tone="plain" label="Cancel rename" size="sm" onClick={() => setEditing(null)}>
+              <X className="h-4 w-4" />
+            </IconButton>
           </span>
         ) : (
-          <span className="flex gap-3">
-            <button type="button" className={link} onClick={() => setEditing({ id: c.id, name: c.name })}>
-              Rename
-            </button>
-            <button
-              type="button"
-              className={link}
+          <span className="inline-flex gap-1">
+            <IconButton tone="plain" label={`Rename ${c.name}`} size="sm" onClick={() => setEditing({ id: c.id, name: c.name })}>
+              <Pencil className="h-3.5 w-3.5" />
+            </IconButton>
+            <IconButton tone="plain"
+              label={c.productCount > 0 ? 'Move its products to another category first' : `Delete ${c.name}`}
+              size="sm"
               disabled={c.productCount > 0}
-              title={c.productCount > 0 ? 'Move its products to another category first' : undefined}
-              onClick={() => run(() => remove.mutateAsync(c.id))}
+              onClick={() => run(() => remove.mutateAsync(c.id)).then((ok) => ok && toast.success('Category deleted', c.name))}
             >
-              Delete
-            </button>
+              <Trash2 className="h-3.5 w-3.5" />
+            </IconButton>
           </span>
         ),
     },
   ];
 
   return (
-    <div className="space-y-4">
-      <form onSubmit={onAdd} className="flex gap-2" noValidate>
+    <div className="space-y-5">
+      <form onSubmit={onAdd} className="flex flex-wrap items-center gap-2" noValidate>
         <input
           aria-label="New category name"
           placeholder="New category name"
-          className={`${input} w-64`}
+          className={cn(inputClass, 'h-10 w-full max-w-xs')}
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={60}
         />
-        <button
-          type="submit"
-          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-        >
+        <Button type="submit" loading={create.isPending} icon={<Plus className="h-4 w-4" />}>
           Add category
-        </button>
+        </Button>
       </form>
-      {error && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {error && <Notice tone="danger">{error}</Notice>}
       <Table
+        caption="Categories"
         columns={columns}
-        rows={categories.data ?? []}
-        empty={categories.isLoading ? 'Loading…' : 'No categories yet'}
+        rows={Array.isArray(categories.data) ? categories.data : []}
+        loading={categories.isLoading}
+        error={categories.error?.message}
+        onRetry={() => categories.refetch()}
+        empty={<EmptyState compact icon={Tags} title="No categories yet" description="Group products so they're easier to filter." />}
       />
     </div>
   );

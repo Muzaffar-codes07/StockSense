@@ -1,14 +1,9 @@
-import { useState, useEffect, type FormEvent } from 'react';
-import { Modal } from '../ui/Modal';
-import {
-  createAdjustment,
-  getLocations,
-  getProductsList,
-  LocationItem,
-  ProductItem,
-} from '../../lib/operations';
-import { stockApi } from '../../features/stock/api';
-import { Plus, Trash2 } from 'lucide-react';
+import { useState, type FormEvent } from 'react';
+import { Modal, Notice } from '@/components/ui';
+import { cn } from '@/lib/cn';
+import { createAdjustment } from '@/lib/operations';
+import { stockApi } from '@/features/stock/api';
+import { DialogFooter, FieldLabel, LineCard, LinesHeader, locationOptions, miniControl, NativeSelect, productOptions, useDocFormData } from './parts';
 
 interface Props {
   open: boolean;
@@ -22,35 +17,16 @@ interface AdjustmentLineState {
   recordedQty: number;
 }
 
+const FORM_ID = 'create-adjustment-form';
+
 export function CreateAdjustmentModal({ open, onClose, onSuccess }: Props) {
-  const [locations, setLocations] = useState<LocationItem[]>([]);
-  const [products, setProducts] = useState<ProductItem[]>([]);
   const [locationId, setLocationId] = useState('');
-  const [lines, setLines] = useState<AdjustmentLineState[]>([
-    { productId: '', countedQty: 0, recordedQty: 0 },
-  ]);
+  const [lines, setLines] = useState<AdjustmentLineState[]>([{ productId: '', countedQty: 0, recordedQty: 0 }]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (open) {
-      setError(null);
-      Promise.all([
-        getLocations().catch(() => []),
-        getProductsList().catch(() => []),
-      ]).then(([locs, prods]) => {
-        setLocations(locs);
-        setProducts(prods);
-        const loc = locs[0]?.id ?? '';
-        const prod = prods[0]?.id ?? '';
-        setLocationId(loc);
-        setLines([{ productId: prod, countedQty: 0, recordedQty: 0 }]);
-        if (prod && loc) {
-          fetchStockOnHand(prod, loc, 0);
-        }
-      });
-    }
-  }, [open]);
+  const updateLine = (index: number, patch: Partial<AdjustmentLineState>) =>
+    setLines((prev) => prev.map((l, i) => (i === index ? { ...l, ...patch } : l)));
 
   const fetchStockOnHand = async (productId: string, locId: string, lineIndex: number) => {
     if (!productId || !locId) return;
@@ -58,40 +34,32 @@ export function CreateAdjustmentModal({ open, onClose, onSuccess }: Props) {
       // Ledger on-hand per location (Role 3's stock API); none recorded here = 0.
       const perLocation = await stockApi.productLocations(productId);
       const here = perLocation.find((l) => l.locationId === locId);
-      updateLine(lineIndex, 'recordedQty', here?.qty ?? 0);
+      updateLine(lineIndex, { recordedQty: here?.qty ?? 0 });
     } catch {
       // If stock can't be fetched, default recorded to 0 rather than block.
-      updateLine(lineIndex, 'recordedQty', 0);
+      updateLine(lineIndex, { recordedQty: 0 });
     }
   };
+
+  const data = useDocFormData(open, undefined, (d) => {
+    setError(null);
+    const loc = d.locations[0]?.id ?? '';
+    const prod = d.products[0]?.id ?? '';
+    setLocationId(loc);
+    setLines([{ productId: prod, countedQty: 0, recordedQty: 0 }]);
+    if (prod && loc) fetchStockOnHand(prod, loc, 0);
+  });
 
   const addLine = () => {
-    const defaultProduct = products[0]?.id ?? '';
+    const defaultProduct = data.products[0]?.id ?? '';
     const newIdx = lines.length;
-    setLines([...lines, { productId: defaultProduct, countedQty: 0, recordedQty: 0 }]);
-    if (defaultProduct && locationId) {
-      fetchStockOnHand(defaultProduct, locationId, newIdx);
-    }
-  };
-
-  const removeLine = (index: number) => {
-    if (lines.length === 1) return;
-    setLines(lines.filter((_, i) => i !== index));
-  };
-
-  const updateLine = (index: number, field: keyof AdjustmentLineState, value: string | number) => {
-    setLines((prev) => {
-      const newLines = [...prev];
-      newLines[index] = { ...newLines[index], [field]: value };
-      return newLines;
-    });
+    setLines((prev) => [...prev, { productId: defaultProduct, countedQty: 0, recordedQty: 0 }]);
+    if (defaultProduct && locationId) fetchStockOnHand(defaultProduct, locationId, newIdx);
   };
 
   const handleProductChange = (index: number, prodId: string) => {
-    updateLine(index, 'productId', prodId);
-    if (locationId) {
-      fetchStockOnHand(prodId, locationId, index);
-    }
+    updateLine(index, { productId: prodId });
+    if (locationId) fetchStockOnHand(prodId, locationId, index);
   };
 
   const handleLocationChange = (locId: string) => {
@@ -104,17 +72,9 @@ export function CreateAdjustmentModal({ open, onClose, onSuccess }: Props) {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-
-    if (!locationId) {
-      setError('Please select a location for the adjustment count');
-      return;
-    }
-
+    if (!locationId) return setError('Choose the location that was counted.');
     const validLines = lines.filter((l) => l.productId);
-    if (validLines.length === 0) {
-      setError('Please add at least one line item');
-      return;
-    }
+    if (validLines.length === 0) return setError('Add at least one counted product.');
 
     setLoading(true);
     try {
@@ -122,10 +82,7 @@ export function CreateAdjustmentModal({ open, onClose, onSuccess }: Props) {
         // recordedQty is left to the server, which reads it from the ledger,
         // so the posted diff never comes from a stale screen.
         locationId,
-        lines: validLines.map((l) => ({
-          productId: l.productId,
-          countedQty: Number(l.countedQty),
-        })),
+        lines: validLines.map((l) => ({ productId: l.productId, countedQty: Number(l.countedQty) })),
       });
       onSuccess();
       onClose();
@@ -137,141 +94,77 @@ export function CreateAdjustmentModal({ open, onClose, onSuccess }: Props) {
   };
 
   return (
-    <Modal open={open} title="New Inventory Adjustment" onClose={onClose}>
-      <form onSubmit={handleSubmit} className="space-y-4 max-w-xl">
-        {error && (
-          <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600 border border-red-200">
-            {error}
-          </div>
-        )}
-
-        <div>
-          <label className="block text-xs font-semibold text-slate-600 uppercase mb-1">
-            Physical Location Counted
-          </label>
-          <select
-            value={locationId}
-            onChange={(e) => handleLocationChange(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none bg-white"
-            required
-          >
-            <option value="">Select Location</option>
-            {locations.map((loc) => (
-              <option key={loc.id} value={loc.id}>
-                {loc.warehouse?.name ? `${loc.warehouse.name} - ` : ''}
-                {loc.name}
-              </option>
-            ))}
-          </select>
+    <Modal
+      open={open}
+      title="New adjustment"
+      description="Record a physical count. Recorded quantities come from the ledger; validating posts the difference."
+      onClose={onClose}
+      size="xl"
+      footer={<DialogFooter formId={FORM_ID} submitLabel="Create adjustment" loading={loading} onCancel={onClose} />}
+    >
+      <form id={FORM_ID} onSubmit={handleSubmit} className="space-y-5" noValidate>
+        <div className="max-w-sm">
+          <FieldLabel htmlFor={`${FORM_ID}-location`}>Location counted</FieldLabel>
+          <NativeSelect id={`${FORM_ID}-location`} value={locationId} onChange={handleLocationChange} placeholder="Select location" options={locationOptions(data.locations)} />
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-semibold text-slate-600 uppercase">Counted Products</span>
-            <button
-              type="button"
-              onClick={addLine}
-              className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-800"
-            >
-              <Plus className="w-3.5 h-3.5" /> Add Product
-            </button>
-          </div>
-
-          <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+          <LinesHeader title="Counted products" onAdd={addLine} disabled={data.products.length === 0} />
+          <div className="scroll-quiet max-h-80 space-y-2 overflow-y-auto">
             {lines.map((line, idx) => {
               const diff = Number(line.countedQty) - Number(line.recordedQty);
+              const uom = data.products.find((p) => p.id === line.productId)?.uom ?? '';
               return (
-                <div
-                  key={idx}
-                  className="flex items-center gap-2 p-2.5 rounded-lg bg-slate-50 border border-slate-200"
-                >
-                  <div className="flex-1">
-                    <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-0.5">Product</label>
-                    <select
-                      value={line.productId}
-                      onChange={(e) => handleProductChange(idx, e.target.value)}
-                      className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:border-indigo-500 focus:outline-none bg-white"
-                      required
-                    >
-                      <option value="">Select product...</option>
-                      {products.map((prod) => (
-                        <option key={prod.id} value={prod.id}>
-                          {prod.name} ({prod.sku})
-                        </option>
-                      ))}
-                    </select>
+                <LineCard key={idx} index={idx} canRemove={lines.length > 1} onRemove={() => setLines((prev) => prev.filter((_, i) => i !== idx))}>
+                  <div className="grid gap-2 sm:grid-cols-[1fr_100px_100px_104px]">
+                    <div>
+                      <FieldLabel htmlFor={`${FORM_ID}-p${idx}`}>Product</FieldLabel>
+                      <NativeSelect id={`${FORM_ID}-p${idx}`} value={line.productId} onChange={(v) => handleProductChange(idx, v)} placeholder="Select product…" options={productOptions(data.products)} />
+                    </div>
+                    <div>
+                      <FieldLabel htmlFor={`${FORM_ID}-r${idx}`}>Recorded</FieldLabel>
+                      <input
+                        id={`${FORM_ID}-r${idx}`}
+                        type="number"
+                        value={line.recordedQty}
+                        readOnly
+                        aria-label="Recorded quantity"
+                        title="From the stock ledger"
+                        className={cn(miniControl, 'tabular')}
+                      />
+                    </div>
+                    <div>
+                      <FieldLabel htmlFor={`${FORM_ID}-c${idx}`}>Counted</FieldLabel>
+                      <input
+                        id={`${FORM_ID}-c${idx}`}
+                        type="number"
+                        step="any"
+                        min="0"
+                        inputMode="decimal"
+                        value={line.countedQty}
+                        onChange={(e) => updateLine(idx, { countedQty: parseFloat(e.target.value) || 0 })}
+                        className={cn(miniControl, 'tabular')}
+                      />
+                    </div>
+                    <div>
+                      <span className="mb-1 block text-[12px] font-medium text-ink-2">Difference</span>
+                      <span
+                        className={cn(
+                          'tabular flex h-10 items-center justify-center rounded-[10px] text-[13.5px] font-semibold',
+                          diff > 0 ? 'bg-success/10 text-success-fg' : diff < 0 ? 'bg-danger/10 text-danger-fg' : 'bg-white text-ink-2',
+                        )}
+                        aria-live="polite"
+                      >
+                        {diff > 0 ? `+${diff}` : `${diff}`} {uom}
+                      </span>
+                    </div>
                   </div>
-
-                  <div className="w-20">
-                    <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-0.5">Recorded</label>
-                    <input
-                      type="number"
-                      value={line.recordedQty}
-                      readOnly
-                      aria-label="Recorded quantity"
-                      className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs bg-slate-100 text-slate-600"
-                    />
-                  </div>
-
-                  <div className="w-20">
-                    <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-0.5">Counted</label>
-                    <input
-                      type="number"
-                      step="any"
-                      min="0"
-                      value={line.countedQty}
-                      onChange={(e) => updateLine(idx, 'countedQty', parseFloat(e.target.value) || 0)}
-                      placeholder="Count"
-                      className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-xs focus:border-indigo-500 focus:outline-none bg-white"
-                      required
-                    />
-                  </div>
-
-                  <div className="w-16 text-center">
-                    <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-0.5">Diff</label>
-                    <span
-                      className={`inline-block px-1.5 py-0.5 text-xs font-semibold rounded ${
-                        diff > 0
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : diff < 0
-                          ? 'bg-rose-100 text-rose-800'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      {diff > 0 ? `+${diff}` : `${diff}`}
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => removeLine(idx)}
-                    disabled={lines.length === 1}
-                    className="text-slate-400 hover:text-rose-600 disabled:opacity-30 p-1 self-end mb-1"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                </LineCard>
               );
             })}
           </div>
         </div>
-
-        <div className="mt-6 flex justify-end gap-3 pt-4 border-t border-slate-100">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-          >
-            {loading ? 'Creating...' : 'Create Adjustment'}
-          </button>
-        </div>
+        {error && <Notice tone="danger">{error}</Notice>}
       </form>
     </Modal>
   );
