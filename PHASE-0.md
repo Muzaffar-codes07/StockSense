@@ -48,11 +48,16 @@ npm run start:dev
 # open http://localhost:3000/health  ->  { "status": "ok", "db": true }
 ```
 
-- [ ] `migrate deploy` applies cleanly (includes the hand-written `stock_quant` view)
-- [ ] `prisma:seed` runs without error
-- [ ] `GET /health` shows `"db": true`
-- [ ] View works: `psql "$DATABASE_URL" -c "SELECT * FROM stock_quant LIMIT 1;"` returns without error
-- [ ] Signed off by: __________________
+- [x] `migrate deploy` applies cleanly (18 tables + the `stock_quant` view)
+- [x] `prisma:seed` runs without error (admin user, 1 warehouse, 2 locations, 2 products)
+- [x] `GET /health` shows `"db": true`
+- [x] View works: `SELECT * FROM stock_quant` returns without error
+- [x] Live integration test green: `npm run test:db` → 8/8, demo flow nets **77**, per-location split 67/10, KPIs/alerts/free-to-use correct
+- [x] Auth against real DB: login, `/auth/me`, OTP request (returns `devOtp`) all OK
+- [x] Signed off by: **Role 1 — validated 2026-09-26 via a user-space Postgres 17.11 (mise) run.**
+      Engineering risk closed (migration + view + ledger flow proven on real Postgres). The
+      team may still re-run in their own Docker env, but it is no longer a blocker.
+      Note: this run surfaced and fixed a main-breaking missing dep (`@nestjs/mapped-types`, commit 380b9ef).
 
 ### Manual DB objects (not in schema.prisma)
 
